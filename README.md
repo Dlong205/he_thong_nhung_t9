@@ -1048,6 +1048,80 @@ Mỗi sinh viên:
 - **MERGE 6:** Full-system integration PASS
 - **MERGE 7:** Fixed-point + benchmark + final evaluation
 
+### 17.1. Hướng dẫn chi tiết từng bước cho thành viên nhóm (Quick Start)
+
+#### Bước 1: Clone dự án về máy tính
+Mỗi bạn mở Terminal / Git Bash trên máy tính của mình và chạy lệnh:
+```bash
+# Clone qua HTTPS:
+git clone https://github.com/Dlong205/he_thong_nhung_t9.git
+
+# Hoặc Clone qua SSH (nếu máy đã cài SSH key):
+git clone git@github.com:Dlong205/he_thong_nhung_t9.git
+
+cd he_thong_nhung_t9
+```
+
+#### Bước 2: Chuyển sang branch cá nhân của mình
+Các branch đã được tạo sẵn trên repository. Bạn phụ trách phần nào thì chuyển sang đúng branch đó:
+- **SV1 (Low-level / Register):**
+  ```bash
+  git checkout sv1-stm32-lowlevel
+  ```
+- **SV2 (MPU6500 Driver / 500 Hz):**
+  ```bash
+  git checkout sv2-mpu6500-driver
+  ```
+- **SV3 (Sensor Fusion / Kalman):**
+  ```bash
+  git checkout sv3-algorithm
+  ```
+- **SV4 (Python / PC Visualizer):**
+  ```bash
+  git checkout sv4-python
+  ```
+Kiểm tra xem mình đang ở đúng branch chưa bằng lệnh: `git branch` (có dấu `*` ở branch của mình là đúng).
+
+#### Bước 3: Vòng lặp làm việc hàng ngày (Daily Workflow)
+Trước khi bắt đầu code mỗi ngày, hãy cập nhật code mới nhất từ nhánh `main`:
+```bash
+git fetch origin
+git merge origin/main
+```
+
+Sau khi viết xong một tính năng hoặc hàm mới:
+```bash
+# 1. Kiểm tra các file đã chỉnh sửa
+git status
+
+# 2. Thêm các file thay đổi vào staging
+git add .
+
+# 3. Commit với mô tả rõ ràng theo quy chuẩn (ví dụ):
+git commit -m "feat(spi): implement SPI1_Transfer register-level"
+
+# 4. Đẩy code lên nhánh của mình trên GitHub
+git push origin <tên-nhánh-của-bạn>
+# Ví dụ SV1: git push origin sv1-stm32-lowlevel
+```
+
+#### Bước 4: Tích hợp vào nhánh `main` (Merge Checkpoints)
+- **Tuyệt đối không push trực tiếp lên `main`**.
+- Khi một module hoàn thành và vượt qua kiểm thử (Gate tương ứng trong Mục 15 & 17):
+  1. Truy cập [github.com/Dlong205/he_thong_nhung_t9](https://github.com/Dlong205/he_thong_nhung_t9).
+  2. Bấm vào tab **Pull Requests** -> Chọn **New Pull Request**.
+  3. Chọn `base: main` $\leftarrow$ `compare: <nhánh-của-bạn>`.
+  4. Viết tóm tắt những gì đã làm, đính kèm ảnh/video đo đạc hoặc kết quả test.
+  5. Cả nhóm cùng review, xác nhận không lỗi và nhấn **Merge pull request**.
+
+#### Bước 5: Bảng phân chia thư mục tập trung cho từng bạn
+| Thành viên | Nhánh Git | Thư mục & File chính cần làm |
+| :--- | :--- | :--- |
+| **SV1** | `sv1-stm32-lowlevel` | `Core/Inc/spi_reg.h`, `Core/Src/spi_reg.c`, `board.h`, cấu hình RCC, GPIO |
+| **SV2** | `sv2-mpu6500-driver` | `Core/Inc/mpu6500.h`, `Core/Src/mpu6500.c`, `calibration.*`, `exti_reg.*` |
+| **SV3** | `sv3-algorithm` | `Core/Inc/attitude.h`, `Core/Inc/kalman.h`, `Core/Src/complementary.c`, `Core/Src/kalman.c` |
+| **SV4** | `sv4-python` | Thư mục `pc/`: `serial_receiver.py`, `realtime_plot.py`, `visualizer_3d.py`, `analysis.py` |
+
 ---
 
 ## 18. Những lỗi cần tránh
