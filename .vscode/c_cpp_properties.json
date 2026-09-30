@@ -1,0 +1,22 @@
+{
+  "configurations": [
+    {
+      "name": "STM32F103",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "C:/Users/tranq/AppData/Local/Keil_v5/arm/pack/Keil/STM32F1xx_DFP/2.4.1/Device/Include",
+        "C:/Users/tranq/AppData/Local/Keil_v5/arm/pack/Keil/STM32F1xx_DFP/2.4.1/Device/StdPeriph_Driver/inc",
+        "C:/Users/tranq/AppData/Local/Keil_v5/arm/pack/ARM/CMSIS/6.3.0/CMSIS/Core/Include",
+        "${workspaceFolder}/RTE/Device/STM32F103C8",
+        "${workspaceFolder}/RTE/_Target_1"
+      ],
+      "defines": [
+        "STM32F10X_MD",
+        "USE_STDPERIPH_DRIVER"
+      ],
+      "cStandard": "c11",
+      "intelliSenseMode": "windows-clang-arm"
+    }
+  ],
+  "version": 4
+}

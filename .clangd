@@ -1,0 +1,14 @@
+CompileFlags:
+  Add:
+    - --target=arm-none-eabi
+    - -mcpu=cortex-m3
+    - -mthumb
+    - -I.
+    - -IC:/Users/tranq/AppData/Local/Keil_v5/arm/pack/Keil/STM32F1xx_DFP/2.4.1/Device/Include
+    - -IC:/Users/tranq/AppData/Local/Keil_v5/arm/pack/Keil/STM32F1xx_DFP/2.4.1/Device/StdPeriph_Driver/inc
+    - -IC:/Users/tranq/AppData/Local/Keil_v5/arm/pack/ARM/CMSIS/6.3.0/CMSIS/Core/Include
+    - -IRTE/Device/STM32F103C8
+    - -IRTE/_Target_1
+    - -DSTM32F10X_MD
+    - -DUSE_STDPERIPH_DRIVER
+    - -D__GNUC__
