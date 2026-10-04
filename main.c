@@ -1,55 +1,71 @@
-#include "stm32f10x.h"
 #include "mpu6500_i2c.h"
+#define SV2_CAPTURE_ACCEL_FACE 0
+float face_mean_raw[3];
 
-int16_t  raw_acc_i2c[3], raw_gyro_i2c[3];
-float    acc_g_i2c[3], gyro_dps_i2c[3];
 MPU_Calib_t calib_i2c;
+SensorData_t sensor_i2c;
+/* Watch: 1=running, -1=clock wrong, -2=MPU init failed, -3=gyro calib failed. */
+volatile int app_status;
+volatile uint32_t sample_count, read_errors, no_data_fault;
+volatile float sample_dt;
+volatile float acc_g_i2c[3], gyro_dps_i2c[3];
 
-/* Xử lý ngắt EXTI0 cho chân PB0 (Data Ready từ MPU6500, active-high) */
+/* Define this handler ONCE in project; merge with stm32f10x_it.c if needed. */
 void EXTI0_IRQHandler(void) {
     if (EXTI->PR & EXTI_PR_PR0) {
-        EXTI->PR = EXTI_PR_PR0;    /* Xóa cờ ngắt bằng cách ghi 1 vào bit */
-        g_mpu_data_ready = 1;
+        EXTI->PR = EXTI_PR_PR0;
+        MPU6500_OnDataReady();
     }
 }
 
 int main(void) {
-    /* 1. Khởi tạo ngoại vi I2C1 (PB6/PB7) và ngắt EXTI0 (PB0) */
-    MPU6500_I2C_LowLevel_Init();
-
-    /* 2. Khởi tạo cảm biến MPU6500 - thử lại đến khi thành công
-     *    g_mpu_id đã được gán bên trong MPU6500_Init_I2C, không đọc lại */
-    while (!MPU6500_Init_I2C()) {
-        delay_ms(100);
+    uint32_t last_ok;
+    /* Startup's SystemInit() must already set HCLK=72 MHz, APB1=36 MHz. */
+    if (!MPU6500_I2C_LowLevel_Init()) {
+        app_status = -1;
+        while (1) {}
     }
-
-    /* 3. Nạp thông số hiệu chuẩn Accel 6 mặt (đo thực tế trên phần cứng của bạn)
-     *    Thứ tự tham số: ax_max, ax_min, ay_max, ay_min, az_max, az_min */
-    MPU6500_CalibAccel6Face_I2C(&calib_i2c, 8200, -8180, 8190, -8210, 8300, -8100);
-
-    /* 4. Lấy Bias Gyro (để mạch nằm yên hoàn toàn, lấy 500 mẫu @ 500Hz = 1 giây) */
-    MPU6500_CalibGyro_I2C(&calib_i2c, 500);
-
-    /* 5. Vòng lặp chính - đồng bộ theo cờ Data Ready từ ngắt EXTI0
-     *    Cứ mỗi 2ms (500Hz) cảm biến kéo INT → ISR đặt cờ → đọc ngay
-     *    dt = 0.002f khi dùng cho bộ lọc Madgwick / Complementary */
+    MPU6500_CalibDefault(&calib_i2c);
+    if (!MPU6500_Init_I2C()) {
+        app_status = -2;
+        while (1) {}
+    }
+#if SV2_CAPTURE_ACCEL_FACE
+    delay_ms(2000); /* let board settle after reset */
+    app_status = MPU6500_MeanAccelFace(500, face_mean_raw) ? 2 : -4;
+    while (1) {} /* Watch face_mean_raw, repeat for the other 5 faces. */
+#endif
+    /* No invented accelerometer calibration numbers.
+     * After measuring all 6 stationary face means, call
+     * MPU6500_CalibAccel6Face_I2C(&calib_i2c, ...six measured values...);
+     */
+    if (!MPU6500_CalibGyro_I2C(&calib_i2c, 500)) {
+        app_status = -3;
+        while (1) {}
+    }
+    app_status = 1;
+    last_ok = MPU6500_TimeUs();
     while (1) {
-        if (g_mpu_data_ready) {
-            g_mpu_data_ready = 0;
-
-            /* Đọc 14 byte dữ liệu thô, bỏ qua mẫu nếu I2C lỗi */
-            if (MPU6500_ReadRaw_I2C(raw_acc_i2c, raw_gyro_i2c) == 0) {
-                /* Chuyển đổi sang đơn vị vật lý (g và dps) */
-                MPU6500_GetScaled_I2C(raw_acc_i2c, raw_gyro_i2c,
-                                      &calib_i2c,
-                                      acc_g_i2c, gyro_dps_i2c);
-
-                /* ---- Thêm xử lý của bạn ở đây ----
-                 * Ví dụ: bộ lọc Complementary / Madgwick với dt = 0.002f
-                 * float pitch = ..., roll = ...;
-                 * ----------------------------------- */
-            }
+        int result = MPU6500_ReadSample_I2C(&calib_i2c, &sensor_i2c);
+        if (result == MPU_SAMPLE_OK) {
+            sample_count++;
+            sample_dt = sensor_i2c.dt;
+            acc_g_i2c[0]=sensor_i2c.ax;
+            acc_g_i2c[1]=sensor_i2c.ay;
+            acc_g_i2c[2]=sensor_i2c.az;
+            gyro_dps_i2c[0]=sensor_i2c.gx;
+            gyro_dps_i2c[1]=sensor_i2c.gy;
+            gyro_dps_i2c[2]=sensor_i2c.gz;
+            last_ok = MPU6500_TimeUs();
+            no_data_fault = 0;
+            /* SV3: use sensor_i2c only here. First dt=0: initialize filter.
+             * On a large dt gap, reset/handle discontinuity in the filter.
+             * No filter or blocking UART work is performed in the ISR.
+             */
+        } else if (result == MPU_SAMPLE_ERROR) {
+            read_errors++;
         }
-        /* Không có delay_ms: CPU nhàn rỗi cho đến khi có ngắt tiếp theo */
+        if ((uint32_t)(MPU6500_TimeUs()-last_ok) > 100000u)
+            no_data_fault = 1;
     }
 }

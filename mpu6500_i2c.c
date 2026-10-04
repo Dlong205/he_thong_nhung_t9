@@ -1,16 +1,79 @@
 #include "mpu6500_i2c.h"
+#include <math.h>
+#include <stddef.h>
 
 volatile uint8_t g_mpu_data_ready = 0;
 volatile uint8_t g_mpu_id = 0;
 
 #define I2C_TIMEOUT_MAX 20000
 
-/* Hàm delay thô sơ (xấp xỉ, dùng cho init không cần chính xác) */
-void delay_ms(volatile uint32_t ms) {
-    ms *= 8000;
-    while(ms--) {
-        __NOP();
+/* TIM2 is reserved by this standalone example: 1 MHz, 16-bit + overflow. */
+static volatile uint32_t timer_high;
+volatile uint32_t g_mpu_irq_count;
+volatile uint32_t g_mpu_irq_time_us;
+volatile uint32_t g_mpu_dropped;
+static uint32_t consumed_irq, last_sample_us;
+static uint8_t have_previous;
+
+void TIM2_IRQHandler(void) {
+    if (TIM2->SR & TIM_SR_UIF) {
+        TIM2->SR = (uint16_t)~TIM_SR_UIF;
+        timer_high += 65536u;
     }
+}
+
+uint32_t MPU6500_TimeUs(void) {
+    uint32_t mask = __get_PRIMASK();
+    uint32_t high, low;
+    __disable_irq();
+    high = timer_high;
+    low = TIM2->CNT;
+    if (TIM2->SR & TIM_SR_UIF) {
+        high += 65536u;
+        low = TIM2->CNT;
+    }
+    __set_PRIMASK(mask);
+    return high + low;
+}
+
+void delay_ms(volatile uint32_t ms) {
+    while (ms--) {
+        uint32_t start = MPU6500_TimeUs();
+        while ((uint32_t)(MPU6500_TimeUs() - start) < 1000u) {}
+    }
+}
+
+/* Call only from the EXTI0 handler after clearing EXTI->PR. */
+void MPU6500_OnDataReady(void) {
+    g_mpu_irq_time_us = MPU6500_TimeUs();
+    g_mpu_irq_count++;
+    g_mpu_data_ready = 1;
+}
+
+void MPU6500_ResetAcquisition(void) {
+    uint32_t mask = __get_PRIMASK();
+    __disable_irq();
+    consumed_irq = g_mpu_irq_count;
+    g_mpu_data_ready = 0;
+    __set_PRIMASK(mask);
+    have_previous = 0;
+}
+
+/* Claim the latest event atomically; no FIFO, old samples cannot be recovered. */
+static uint8_t take_event(uint32_t *stamp, uint32_t *sequence) {
+    uint32_t mask = __get_PRIMASK();
+    __disable_irq();
+    *sequence = g_mpu_irq_count;
+    if (*sequence == consumed_irq) {
+        __set_PRIMASK(mask);
+        return 0;
+    }
+    g_mpu_dropped += (uint32_t)(*sequence - consumed_irq) - 1u;
+    consumed_irq = *sequence;
+    *stamp = g_mpu_irq_time_us;
+    g_mpu_data_ready = 0;
+    __set_PRIMASK(mask);
+    return 1;
 }
 
 /* ====================================================================
@@ -38,6 +101,8 @@ static void I2C_Bus_Reset(void) {
     }
 
     /* 4. Tạo điều kiện STOP: SDA LOW → SCL HIGH → SDA HIGH */
+    GPIOB->BRR  = (1 << 6);   /* SCL LOW before changing SDA */
+    delay_ms(1);
     GPIOB->BRR  = (1 << 7);   /* SDA LOW  */
     delay_ms(1);
     GPIOB->BSRR = (1 << 6);   /* SCL HIGH */
@@ -63,10 +128,28 @@ static void I2C_Bus_Reset(void) {
 }
 
 /* Khởi tạo cấu hình I2C1 (PB6=SCL, PB7=SDA) và ngắt EXTI0 (PB0) */
-void MPU6500_I2C_LowLevel_Init(void) {
+uint8_t MPU6500_I2C_LowLevel_Init(void) {
+    SystemCoreClockUpdate();
+    /* The supplied project must configure HCLK=72 MHz and APB1=/2. */
+    if (SystemCoreClock != 72000000u || ((RCC->CFGR >> 8) & 7u) != 4u)
+        return 0;
+    RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
+    TIM2->CR1 = 0;
+    TIM2->PSC = 71;
+    TIM2->ARR = 65535;
+    TIM2->EGR = TIM_EGR_UG;
+    TIM2->SR = 0;
+    timer_high = 0;
+    TIM2->CNT = 0;
+    TIM2->DIER = TIM_DIER_UIE;
+    NVIC_SetPriority(TIM2_IRQn, 0);
+    NVIC_EnableIRQ(TIM2_IRQn);
+    TIM2->CR1 = TIM_CR1_CEN;
     /* 1. Bật clock cho GPIOB, AFIO và I2C1 */
     RCC->APB2ENR |= RCC_APB2ENR_IOPBEN | RCC_APB2ENR_AFIOEN;
     RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
+
+    AFIO->MAPR &= ~AFIO_MAPR_I2C1_REMAP;
 
     /* 2. Cấu hình PB6, PB7 làm Alternate Function Open-Drain 50MHz */
     GPIOB->CRL &= ~(0xFF000000);   /* Xóa cấu hình PB6, PB7 */
@@ -87,8 +170,11 @@ void MPU6500_I2C_LowLevel_Init(void) {
     EXTI->IMR  |= EXTI_IMR_MR0;    /* Unmask EXTI0 */
     EXTI->RTSR |= EXTI_RTSR_TR0;   /* Kích hoạt ngắt sườn lên (INT active-high) */
 
-    NVIC_EnableIRQ(EXTI0_IRQn);
+    EXTI->FTSR &= ~EXTI_FTSR_TR0;
+    EXTI->PR = EXTI_PR_PR0;
     NVIC_SetPriority(EXTI0_IRQn, 1);
+    NVIC_EnableIRQ(EXTI0_IRQn);
+    return 1;
 }
 
 /* ====================================================================
@@ -128,56 +214,10 @@ uint8_t I2C_WriteReg(uint8_t dev_addr, uint8_t reg_addr, uint8_t data) {
 }
 
 /* ====================================================================
- * I2C_ReadReg: Đọc 1 thanh ghi, trả về giá trị (0 nếu lỗi)
+ * I2C_ReadReg: 0=OK, 1=error; value is written on success
  * ==================================================================== */
-uint8_t I2C_ReadReg(uint8_t dev_addr, uint8_t reg_addr) {
-    uint8_t  data = 0;
-    uint32_t timeout;
-
-    timeout = I2C_TIMEOUT_MAX;
-    while ((I2C1->SR2 & I2C_SR2_BUSY) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-
-    /* --- Phase Write: gửi địa chỉ thanh ghi --- */
-    I2C1->CR1 |= I2C_CR1_START;
-    timeout = I2C_TIMEOUT_MAX;
-    while (!(I2C1->SR1 & I2C_SR1_SB) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-
-    I2C1->DR = dev_addr;
-    timeout = I2C_TIMEOUT_MAX;
-    while (!(I2C1->SR1 & I2C_SR1_ADDR) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-    (void)I2C1->SR2;
-
-    I2C1->DR = reg_addr;
-    /* Chờ BTF trước Restart để tránh điều kiện race */
-    timeout = I2C_TIMEOUT_MAX;
-    while (!(I2C1->SR1 & I2C_SR1_BTF) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-
-    /* --- Phase Read: Repeated START --- */
-    I2C1->CR1 |= I2C_CR1_START;
-    timeout = I2C_TIMEOUT_MAX;
-    while (!(I2C1->SR1 & I2C_SR1_SB) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-
-    I2C1->DR = dev_addr | 0x01;
-    timeout = I2C_TIMEOUT_MAX;
-    while (!(I2C1->SR1 & I2C_SR1_ADDR) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-
-    /* Theo RM0008: NACK trước khi xóa ADDR, rồi mới set STOP */
-    I2C1->CR1 &= ~I2C_CR1_ACK;
-    (void)I2C1->SR2;             /* Clear ADDR */
-    I2C1->CR1 |= I2C_CR1_STOP;
-
-    timeout = I2C_TIMEOUT_MAX;
-    while (!(I2C1->SR1 & I2C_SR1_RXNE) && --timeout);
-    if (!timeout) { I2C_Bus_Reset(); return 0; }
-    data = I2C1->DR;
-
-    return data;
+uint8_t I2C_ReadReg(uint8_t dev_addr, uint8_t reg_addr, uint8_t *value) {
+    return I2C_ReadBurst(dev_addr, reg_addr, value, 1);
 }
 
 /* ====================================================================
@@ -187,7 +227,10 @@ uint8_t I2C_ReadReg(uint8_t dev_addr, uint8_t reg_addr) {
 uint8_t I2C_ReadBurst(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len) {
     uint32_t timeout;
 
-    if (len == 0) return 1;
+    if (len == 0 || data == NULL) return 1;
+    I2C1->CR1 &= ~I2C_CR1_POS;
+    I2C1->CR1 |= I2C_CR1_ACK;
+    if (len == 2) I2C1->CR1 |= I2C_CR1_POS;
 
     timeout = I2C_TIMEOUT_MAX;
     while ((I2C1->SR2 & I2C_SR2_BUSY) && --timeout);
@@ -224,25 +267,33 @@ uint8_t I2C_ReadBurst(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_
 
     if (len == 1) {
         /* 1 byte: NACK → Clear ADDR → STOP → đọc */
+        uint32_t mask = __get_PRIMASK();
+        __disable_irq();
         I2C1->CR1 &= ~I2C_CR1_ACK;
         (void)I2C1->SR2;
         I2C1->CR1 |= I2C_CR1_STOP;
+        __set_PRIMASK(mask);
         timeout = I2C_TIMEOUT_MAX;
         while (!(I2C1->SR1 & I2C_SR1_RXNE) && --timeout);
         if (!timeout) { I2C_Bus_Reset(); return 1; }
         data[0] = I2C1->DR;
 
     } else if (len == 2) {
-        /* 2 byte: POS+NACK trước Clear ADDR, chờ BTF, đọc cả hai */
-        I2C1->CR1 |= I2C_CR1_POS;
-        I2C1->CR1 &= ~I2C_CR1_ACK;
+        /* POS was set before address; clear ADDR then ACK atomically. */
+        uint32_t mask = __get_PRIMASK();
+        __disable_irq();
         (void)I2C1->SR2;
+        I2C1->CR1 &= ~I2C_CR1_ACK;
+        __set_PRIMASK(mask);
         timeout = I2C_TIMEOUT_MAX;
         while (!(I2C1->SR1 & I2C_SR1_BTF) && --timeout);
         if (!timeout) { I2C1->CR1 &= ~I2C_CR1_POS; I2C_Bus_Reset(); return 1; }
+        mask = __get_PRIMASK();
+        __disable_irq();
         I2C1->CR1 |= I2C_CR1_STOP;
         data[0] = I2C1->DR;
         data[1] = I2C1->DR;
+        __set_PRIMASK(mask);
         I2C1->CR1 &= ~I2C_CR1_POS;
 
     } else {
@@ -250,40 +301,37 @@ uint8_t I2C_ReadBurst(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_
         I2C1->CR1 |= I2C_CR1_ACK;
         (void)I2C1->SR2;
 
-        for (uint16_t i = 0; i < len; i++) {
-            if (i == len - 3) {
-                /* Byte N-3 đã vào DR, chờ BTF → cả N-2 và N-3 đã có trong shift reg */
-                timeout = I2C_TIMEOUT_MAX;
-                while (!(I2C1->SR1 & I2C_SR1_BTF) && --timeout);
-                if (!timeout) { I2C_Bus_Reset(); return 1; }
-                /* Tắt ACK (sẽ NACK cho byte N-1) */
-                I2C1->CR1 &= ~I2C_CR1_ACK;
-                data[i] = I2C1->DR; /* Đọc byte N-3 */
-
-            } else if (i == len - 2) {
-                /* Chờ BTF: byte N-2 trong DR, byte N-1 trong shift register */
-                timeout = I2C_TIMEOUT_MAX;
-                while (!(I2C1->SR1 & I2C_SR1_BTF) && --timeout);
-                if (!timeout) { I2C_Bus_Reset(); return 1; }
-                I2C1->CR1 |= I2C_CR1_STOP;  /* STOP trước khi đọc byte N-2 */
-                data[i] = I2C1->DR;          /* Đọc byte N-2 */
-
-            } else if (i == len - 1) {
-                /* Đọc byte cuối N-1 */
-                timeout = I2C_TIMEOUT_MAX;
-                while (!(I2C1->SR1 & I2C_SR1_RXNE) && --timeout);
-                if (!timeout) { I2C_Bus_Reset(); return 1; }
-                data[i] = I2C1->DR;
-
-            } else {
-                /* Các byte thường: chờ RXNE rồi đọc */
-                timeout = I2C_TIMEOUT_MAX;
-                while (!(I2C1->SR1 & I2C_SR1_RXNE) && --timeout);
-                if (!timeout) { I2C_Bus_Reset(); return 1; }
-                data[i] = I2C1->DR;
-            }
+        uint16_t i = 0;
+        while (len - i > 3) {
+            timeout = I2C_TIMEOUT_MAX;
+            while (!(I2C1->SR1 & I2C_SR1_RXNE) && --timeout) {}
+            if (!timeout) { I2C_Bus_Reset(); return 1; }
+            data[i++] = I2C1->DR;
+        }
+        timeout = I2C_TIMEOUT_MAX;
+        while (!(I2C1->SR1 & I2C_SR1_BTF) && --timeout) {}
+        if (!timeout) { I2C_Bus_Reset(); return 1; }
+        {
+            uint32_t mask = __get_PRIMASK();
+            __disable_irq();
+            I2C1->CR1 &= ~I2C_CR1_ACK;
+            data[i++] = I2C1->DR;
+            __set_PRIMASK(mask);
+        }
+        timeout = I2C_TIMEOUT_MAX;
+        while (!(I2C1->SR1 & I2C_SR1_BTF) && --timeout) {}
+        if (!timeout) { I2C_Bus_Reset(); return 1; }
+        {
+            uint32_t mask = __get_PRIMASK();
+            __disable_irq();
+            I2C1->CR1 |= I2C_CR1_STOP;
+            data[i++] = I2C1->DR;
+            data[i] = I2C1->DR;
+            __set_PRIMASK(mask);
         }
     }
+    I2C1->CR1 &= ~I2C_CR1_POS;
+    I2C1->CR1 |= I2C_CR1_ACK;
     return 0;
 }
 
@@ -291,33 +339,33 @@ uint8_t I2C_ReadBurst(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_
  * MPU6500_Init_I2C: Khởi tạo cảm biến, trả về 1=OK, 0=lỗi
  * ==================================================================== */
 uint8_t MPU6500_Init_I2C(void) {
+    /* MPU6500 only. Other chips need their own verified register configuration. */
+    static const uint8_t setup[][2] = {
+        {0x6B, 0x01}, /* PLL clock, awake */
+        {0x6C, 0x00}, /* enable all six axes */
+        {0x19, 0x01}, /* 1 kHz / (1+1) = 500 Hz */
+        {0x1A, 0x03}, /* gyro DLPF 41 Hz */
+        {0x1B, 0x08}, /* gyro +/-500 dps, FCHOICE_B=0 */
+        {0x1C, 0x08}, /* accel +/-4 g */
+        {0x1D, 0x03}, /* accel DLPF 41 Hz */
+        {0x37, 0x00}, /* INT active high, push-pull, pulse */
+        {0x38, 0x01}  /* raw data ready interrupt */
+    };
+    uint8_t value;
     delay_ms(100);
-    g_mpu_id = I2C_ReadReg(MPU6500_I2C_ADDRESS, 0x75);
-
-    /* Hỗ trợ MPU6500 (0x70), MPU9250 (0x71), MPU6500 variant (0x73) hoặc MPU6050 (0x68) */
-    if (g_mpu_id != 0x70 && g_mpu_id != 0x71 && g_mpu_id != 0x73 && g_mpu_id != 0x68) {
-        return 0;
-    }
-
-    /* Reset toàn bộ thanh ghi */
+    if (I2C_ReadReg(MPU6500_I2C_ADDRESS, 0x75, &value)) return 0;
+    g_mpu_id = value;
+    if (g_mpu_id != 0x70) return 0;
     if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x6B, 0x80)) return 0;
     delay_ms(100);
-
-    /* Chọn nguồn clock tự động (PLL với gyro) */
-    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x6B, 0x01)) return 0;
-    delay_ms(10);
-
-    /* Sample Rate = 500Hz: SMPLRT_DIV = 1 (với DLPF bật: ODR = 1000/(1+1) = 500Hz) */
-    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x19, 0x01)) return 0;
-    /* DLPF = 41Hz (config 0x03), giảm nhiễu tần số cao */
-    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x1A, 0x03)) return 0;
-    /* Gyro: ±500 dps */
-    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x1B, 0x08)) return 0;
-    /* Accel: ±4g */
-    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x1C, 0x08)) return 0;
-    /* Bật ngắt Data Ready trên chân INT */
-    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x38, 0x01)) return 0;
-
+    for (unsigned i = 0; i < sizeof(setup)/sizeof(setup[0]); ++i) {
+        if (I2C_WriteReg(MPU6500_I2C_ADDRESS, setup[i][0], setup[i][1])) return 0;
+        delay_ms(1);
+        if (I2C_ReadReg(MPU6500_I2C_ADDRESS, setup[i][0], &value)) return 0;
+        if (value != setup[i][1]) return 0;
+    }
+    delay_ms(100); /* sensor settling before calibration */
+    MPU6500_ResetAcquisition();
     return 1;
 }
 
@@ -326,6 +374,7 @@ uint8_t MPU6500_Init_I2C(void) {
  * ==================================================================== */
 uint8_t MPU6500_ReadRaw_I2C(int16_t acc[3], int16_t gyro[3]) {
     uint8_t buffer[14];
+    if (acc == NULL || gyro == NULL) return 1;
 
     if (I2C_ReadBurst(MPU6500_I2C_ADDRESS, 0x3B, buffer, 14) != 0) {
         return 1; /* Lỗi I2C: bỏ mẫu, giữ nguyên giá trị cũ */
@@ -353,43 +402,117 @@ void MPU6500_GetScaled_I2C(int16_t raw_acc[3], int16_t raw_gyro[3],
     }
 }
 
-void MPU6500_CalibAccel6Face_I2C(MPU_Calib_t *calib,
-                                 float ax_max, float ax_min,
-                                 float ay_max, float ay_min,
-                                 float az_max, float az_min) {
-    calib->acc_offset[0] = (ax_max + ax_min) / 2.0f;
-    calib->acc_offset[1] = (ay_max + ay_min) / 2.0f;
-    calib->acc_offset[2] = (az_max + az_min) / 2.0f;
-
-    calib->acc_scale[0] = ACCEL_SCALE_4G / ((ax_max - ax_min) / 2.0f);
-    calib->acc_scale[1] = ACCEL_SCALE_4G / ((ay_max - ay_min) / 2.0f);
-    calib->acc_scale[2] = ACCEL_SCALE_4G / ((az_max - az_min) / 2.0f);
+void MPU6500_CalibDefault(MPU_Calib_t *calib) {
+    for (unsigned i = 0; i < 3; ++i) {
+        calib->acc_offset[i] = 0.0f;
+        calib->acc_scale[i] = 1.0f;
+        calib->gyro_bias[i] = 0.0f;
+    }
 }
 
-/* ====================================================================
- * MPU6500_CalibGyro_I2C: Lấy trung bình Bias Gyro (mạch để yên)
- * Dùng cờ data-ready, không dùng delay_ms thừa
- * ==================================================================== */
-void MPU6500_CalibGyro_I2C(MPU_Calib_t *calib, uint16_t samples) {
-    int32_t  sum[3] = {0, 0, 0};
-    int16_t  raw_a[3], raw_g[3];
-
-    for (uint16_t i = 0; i < samples; i++) {
-        /* Chờ cờ Data Ready từ EXTI (có timeout phòng chân INT không nối) */
-        uint32_t timeout = 100000;
-        while (!g_mpu_data_ready && --timeout);
-        g_mpu_data_ready = 0;
-
-        if (MPU6500_ReadRaw_I2C(raw_a, raw_g) == 0) {
-            /* Chỉ cộng mẫu khi đọc I2C thành công */
-            sum[0] += raw_g[0];
-            sum[1] += raw_g[1];
-            sum[2] += raw_g[2];
-        }
-        /* Không có delay_ms ở đây: đã đồng bộ bằng cờ data-ready */
+uint8_t MPU6500_CalibAccel6Face_I2C(MPU_Calib_t *calib,
+    float ax_max, float ax_min, float ay_max, float ay_min,
+    float az_max, float az_min) {
+    float hi[3] = {ax_max, ay_max, az_max};
+    float lo[3] = {ax_min, ay_min, az_min};
+    if (calib == NULL) return 0;
+    /* Inputs are stationary means from +/-1 g poses, NOT random extrema. */
+    for (unsigned i = 0; i < 3; ++i) {
+        if (!isfinite(hi[i]) || !isfinite(lo[i]) ||
+            hi[i] < 0.5f * ACCEL_SCALE_4G ||
+            lo[i] > -0.5f * ACCEL_SCALE_4G ||
+            hi[i] > 1.5f * ACCEL_SCALE_4G ||
+            lo[i] < -1.5f * ACCEL_SCALE_4G) return 0;
     }
+    for (unsigned i = 0; i < 3; ++i) {
+        calib->acc_offset[i] = (hi[i] + lo[i]) * 0.5f;
+        calib->acc_scale[i] = 2.0f * ACCEL_SCALE_4G / (hi[i] - lo[i]);
+    }
+    return 1;
+}
 
-    calib->gyro_bias[0] = (float)sum[0] / samples;
-    calib->gyro_bias[1] = (float)sum[1] / samples;
-    calib->gyro_bias[2] = (float)sum[2] / samples;
+/* 1=success, 0=failure; never change bias on a failed calibration.
+ * Blocking startup operation. Keep board stationary; IRQs must be enabled.
+ */
+uint8_t MPU6500_CalibGyro_I2C(MPU_Calib_t *calib, uint16_t samples) {
+    float mean[3] = {0}, m2[3] = {0};
+    int16_t a[3], g[3];
+    uint32_t stamp, sequence;
+    if (calib == NULL || samples < 2) return 0;
+    MPU6500_ResetAcquisition();
+    for (uint32_t n = 1; n <= samples; ++n) {
+        uint32_t start = MPU6500_TimeUs();
+        while (!take_event(&stamp, &sequence)) {
+            if ((uint32_t)(MPU6500_TimeUs()-start) > 50000u) return 0;
+        }
+        if (MPU6500_ReadRaw_I2C(a, g)) return 0;
+        if (g_mpu_irq_count != sequence) return 0;
+        /* A simple motion screen, not proof of stationarity. */
+        float norm2 = 0.0f;
+        for (unsigned i = 0; i < 3; ++i) {
+            float ag = a[i] / ACCEL_SCALE_4G;
+            float delta = (float)g[i] - mean[i];
+            norm2 += ag * ag;
+            mean[i] += delta / (float)n;
+            m2[i] += delta * ((float)g[i] - mean[i]);
+        }
+        if (norm2 < 0.81f || norm2 > 1.21f) return 0;
+    }
+    for (unsigned i = 0; i < 3; ++i) {
+        if (m2[i] / (samples - 1u) > GYRO_SCALE_500DPS * GYRO_SCALE_500DPS)
+            return 0; /* standard deviation > 1 dps */
+    }
+    for (unsigned i = 0; i < 3; ++i) calib->gyro_bias[i] = mean[i];
+    MPU6500_ResetAcquisition();
+    return 1;
+}
+
+/* MPU_SAMPLE_OK=1, NONE=0, ERROR=-1. Output stays unchanged on failure. */
+int MPU6500_ReadSample_I2C(const MPU_Calib_t *calib, SensorData_t *out) {
+    uint32_t stamp, sequence;
+    int16_t a[3], g[3];
+    float ag[3], gd[3];
+    SensorData_t next;
+    if (calib == NULL || out == NULL) return MPU_SAMPLE_ERROR;
+    if (!take_event(&stamp, &sequence)) return MPU_SAMPLE_NONE;
+    if (MPU6500_ReadRaw_I2C(a, g) || g_mpu_irq_count != sequence) {
+        g_mpu_dropped++;
+        return MPU_SAMPLE_ERROR;
+    }
+    MPU6500_GetScaled_I2C(a, g, calib, ag, gd);
+    next.ax=ag[0]; next.ay=ag[1]; next.az=ag[2];
+    next.gx=gd[0]; next.gy=gd[1]; next.gz=gd[2];
+    next.timestamp = stamp;
+    next.dt = have_previous ? (uint32_t)(stamp-last_sample_us)*1.0e-6f : 0.0f;
+    last_sample_us = stamp;
+    have_previous = 1;
+    *out = next;
+    return MPU_SAMPLE_OK;
+}
+
+/* Measure one stationary face. Repeat manually for +X,-X,+Y,-Y,+Z,-Z. */
+uint8_t MPU6500_MeanAccelFace(uint16_t samples, float mean_raw[3]) {
+    float mean[3] = {0}, m2[3] = {0};
+    int16_t a[3], g[3];
+    uint32_t stamp, sequence;
+    if (samples < 2 || mean_raw == NULL) return 0;
+    MPU6500_ResetAcquisition();
+    for (uint32_t n=1; n<=samples; ++n) {
+        uint32_t start = MPU6500_TimeUs();
+        while (!take_event(&stamp, &sequence)) {
+            if ((uint32_t)(MPU6500_TimeUs()-start) > 50000u) return 0;
+        }
+        if (MPU6500_ReadRaw_I2C(a,g) || g_mpu_irq_count != sequence) return 0;
+        for (unsigned i=0; i<3; ++i) {
+            float delta = a[i]-mean[i];
+            mean[i] += delta/(float)n;
+            m2[i] += delta*(a[i]-mean[i]);
+        }
+    }
+    for (unsigned i=0; i<3; ++i)
+        if (m2[i]/(samples-1u) > (0.03f*ACCEL_SCALE_4G)*(0.03f*ACCEL_SCALE_4G))
+            return 0;
+    for (unsigned i=0; i<3; ++i) mean_raw[i]=mean[i];
+    MPU6500_ResetAcquisition();
+    return 1;
 }
