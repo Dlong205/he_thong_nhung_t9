@@ -5,6 +5,15 @@
 > **Phiên bản định hướng:** STM32F103 + MPU6500 + SPI mức thanh ghi + Data Ready Interrupt + Complementary/Kalman + Python realtime/3D  
 > **Mục tiêu:** bám yêu cầu đề tài mức Khó, có phần lập trình thanh ghi rõ ràng, thuật toán tự viết, đo đạc định lượng và demo trực quan.
 
+## Tiến độ thực tế (2026-10-05, SV3 — giữ nguyên, chưa có mạch để làm tiếp)
+
+- Đã chốt và kiểm chứng: Blue Pill F103C8 + GY-6500, **I2C1 PB6/PB7 400kHz** (đổi từ SPI cho khớp đề K03), nguồn 3.3V, AD0=GND addr `0x68`, `WHO_AM_I=0x70` ổn định.
+- Debug qua **USB-CDC micro-USB** (`0483:5740` -> `/dev/ttyACM0`, lúc reset nhảy ACM1), 115200. ST-Link chỉ giữ SWDIO/SWCLK/GND (bỏ 3.3V để tránh xung nguồn). Chi tiết: `docs/block_diagram/pinmap.md`.
+- Firmware modular đã chạy: `mpu6500/calib/attitude/cf/kalman(float)+cffix(Q16.16)/telemetry/timing(DWT)`, poll **500Hz**, telemetry CSV **50Hz**, gyro bias `+9.38/-3.04/+1.38 dps`, exec **~658-685us < 2000us**. Chi tiết: `docs/block_diagram/register_config.md`, số đo: `docs/measurements/baseline_2026-09-28.md`.
+- Python đã chạy: `serial_logger` + `analysis` (std acc ~0.068°, CF/KF ~0.016°), `realtime_plot`, `visualizer_3d_fast` solid 20fps Roll/Pitch (bỏ Yaw, chờ la bàn mở rộng).
+- SV3 đã xong: acc/gyro/CF α=0.98/Kalman 2-state float + fixed Q16.16, tune bảng, drift 330s CF/KF không trôi, float-fix max|e|=0.01°, jitter std ~2us. Xem `docs/measurements/drift_tune_fix_2026-09-28.md`, `dynamic_2026-09-28.md`.
+- Chưa làm (do chưa có mạch, giữ nguyên tiến trình): I2C/EXTI register thật (đang `Wire` + `attachInterrupt`), benchmark từng khối Acc/Gyro/CF/Kalman + số Flash/RAM, servo đối chứng + đo độ trễ, OLED/LED7 hiển thị, Yaw từ kế HMC/QMC (mở rộng), packet binary.
+
 ---
 
 ## 1. Mục tiêu dự án
@@ -632,133 +641,132 @@ Ngoài ra:
 ## 15. Các phase triển khai
 
 ### PHASE 0 -- Chốt phần cứng và tài liệu
-- [ ] Xác nhận chính xác STM32 board/MCU.
-- [ ] Xác nhận module là MPU6500.
-- [ ] Lưu datasheet/reference manual cần dùng.
-- [ ] Chốt pin map.
-- [ ] Chốt nguồn 3.3 V/logic level.
-- [ ] Chốt SPI instance.
-- [ ] Chốt UART/debug path.
-- [ ] Tạo Git repository.
-- [ ] Viết README kiến trúc ban đầu.
+- [x] Xác nhận chính xác STM32 board/MCU.
+- [x] Xác nhận module là MPU6500.
+- [x] Lưu datasheet/reference manual cần dùng.
+- [x] Chốt pin map.
+- [x] Chốt nguồn 3.3 V/logic level.
+- [x] Chốt I2C instance (đổi từ SPI sang I2C1 PB6/PB7 400kHz cho khớp đề K03).
+- [x] Chốt USB-CDC/micro-USB debug path (thay UART TTL rời).
+- [x] Tạo Git repository.
+- [x] Viết README kiến trúc ban đầu.
 
 **Gate:** pin map và electrical interface được kiểm tra.
 
 ---
 
 ### PHASE 1 -- Bring-up STM32 register-level
-- [ ] RCC.
-- [ ] GPIO.
-- [ ] CS GPIO.
-- [ ] SPI.
-- [ ] Test SPI transfer cơ bản.
+- [x] RCC.
+- [x] GPIO.
+- [x] I2C (thay CS/SPI bằng I2C1 PB6/PB7, dump APB1ENR/CR1/CR2/CCR/TRISE qua log).
+- [x] Test I2C scan cơ bản (thấy 0x68).
 
-**Gate:** SPI clock/MOSI/CS đúng; nếu có logic analyzer/oscilloscope thì lưu waveform làm bằng chứng.
+**Gate:** I2C 400kHz quét thấy thiết bị, WHO_AM_I đọc ổn định (xem `docs/block_diagram/pinmap.md`).
 
 ---
 
 ### PHASE 2 -- MPU6500 WHO_AM_I
-- [ ] `ReadReg()`.
-- [ ] `WriteReg()`.
-- [ ] WHO_AM_I.
-- [ ] Reset MPU.
-- [ ] Kiểm chứng đọc lặp ổn định.
+- [x] `ReadReg()`.
+- [x] `WriteReg()`.
+- [x] WHO_AM_I (`0x70` MPU6500).
+- [x] Reset MPU.
+- [x] Kiểm chứng đọc lặp ổn định (`tick id=0x70` liên tục).
 
 **Gate:** nhận đúng ID và không có lỗi ngẫu nhiên trong test lặp.
 
 ---
 
 ### PHASE 3 -- MPU6500 6-axis data
-- [ ] Cấu hình gyro.
-- [ ] Cấu hình accelerometer.
-- [ ] DLPF.
-- [ ] Sample rate.
-- [ ] Burst read.
-- [ ] Convert raw → physical unit.
+- [x] Cấu hình gyro.
+- [x] Cấu hình accelerometer.
+- [x] DLPF.
+- [x] Sample rate.
+- [x] Burst read.
+- [x] Convert raw → physical unit.
 
 **Gate:** dữ liệu phản ứng đúng khi xoay từng trục.
 
 ---
 
 ### PHASE 4 -- INT + sampling 500 Hz
-- [ ] MPU Data Ready Interrupt.
-- [ ] GPIO input.
-- [ ] AFIO/EXTI.
-- [ ] NVIC.
-- [ ] ISR.
-- [ ] Đo sampling period.
-- [ ] Đo jitter.
+- [x] MPU Data Ready Interrupt (`INT_ENABLE.DATA_RDY_EN`, xung 50us).
+- [x] GPIO input (PA0 pull-down).
+- [x] AFIO/EXTI (EXTICR1/IMR/RTSR dump qua log).
+- [x] NVIC (qua attachInterrupt RISING).
+- [x] ISR (flag, xu ly chinh o loop).
+- [x] Đo sampling period (`dt_us` moi mau).
+- [x] Đo jitter (std 1.84us, span 12us, xem `docs/measurements/exti_jitter_2026-09-28.md`).
 
 **Gate:** sampling thực tế ổn định quanh 500 Hz.
 
 ---
 
 ### PHASE 5 -- Calibration
-- [ ] Gyro bias.
-- [ ] Acc 6-face.
-- [ ] Offset.
-- [ ] Scale.
-- [ ] So sánh before/after.
+- [x] Gyro bias.
+- [x] Acc 6-face.
+- [x] Offset.
+- [x] Scale.
+- [x] So sánh before/after (xem `docs/measurements/acc6face_2026-09-28.md`).
 
 **Gate:** calibration cải thiện số liệu theo metric đã chọn.
 
 ---
 
 ### PHASE 6 -- Baseline angle estimation
-- [ ] Roll/Pitch accelerometer.
-- [ ] Gyro integration.
-- [ ] Kiểm tra sign/axis convention.
-- [ ] Kiểm tra `dt`.
+- [x] Roll/Pitch accelerometer.
+- [x] Gyroscope integration.
+- [x] Kiểm tra sign/axis convention.
+- [x] Kiểm tra `dt`.
 
 **Gate:** góc phản ứng đúng chiều và đúng gần giá trị tham chiếu.
 
 ---
 
 ### PHASE 7 -- Complementary Filter
-- [ ] Viết filter.
-- [ ] Tune alpha.
-- [ ] Static test.
-- [ ] Dynamic test.
-- [ ] Vibration test.
+- [x] Viết filter.
+- [x] Tune alpha (sweep 0.90-0.995, chọn 0.98, xem `docs/measurements/drift_tune_fix_2026-09-28.md`).
+- [x] Static test (std ~0.016°).
+- [x] Dynamic test (0-53°, CF/KF bám acc, gyro trôi +35°/30s, xem `docs/measurements/dynamic_2026-09-28.md`).
+- [x] Vibration test (gõ nhẹ: acc std 0.062→0.078, KF giữ 0.014, xem file trên).
 
 **Gate:** có dữ liệu chứng minh ưu/nhược so với Acc/Gyro riêng.
 
 ---
 
 ### PHASE 8 -- Kalman float
-- [ ] State model.
-- [ ] Predict.
-- [ ] Covariance prediction.
-- [ ] Measurement update.
-- [ ] Kalman gain.
-- [ ] Bias estimation.
-- [ ] Tune Q/R.
-- [ ] Roll.
-- [ ] Pitch.
+- [x] State model.
+- [x] Predict.
+- [x] Covariance prediction.
+- [x] Measurement update.
+- [x] Kalman gain.
+- [x] Bias estimation.
+- [x] Tune Q/R (sweep offline, giữ mặc định 0.001/0.003/0.03, xem `docs/measurements/drift_tune_fix_2026-09-28.md`).
+- [x] Roll.
+- [x] Pitch.
 
 **Gate:** kiểm chứng bằng dữ liệu thực, không chỉ "code chạy".
 
 ---
 
 ### PHASE 9 -- PC telemetry + Python
-- [ ] USART register-level.
-- [ ] Packet protocol.
-- [ ] Python receiver.
-- [ ] Realtime graph.
-- [ ] CSV logger.
-- [ ] 3D visualization.
+- [x] USB-CDC telemetry CSV 50Hz (thay USART register-level).
+- [x] Packet protocol (CSV header `ts,...,exec_us`).
+- [x] Python receiver.
+- [x] Realtime graph.
+- [x] CSV logger.
+- [x] 3D visualization (solid 20fps, Roll/Pitch, bỏ Yaw).
 
 **Gate:** demo liên tục, không làm hỏng sampling.
 
 ---
 
 ### PHASE 10 -- Benchmark
-- [ ] Timer/cycle measurement.
+- [x] Timer/cycle measurement (DWT CYCCNT).
 - [ ] Acc calculation.
 - [ ] Gyro integration.
 - [ ] Complementary.
 - [ ] Kalman.
-- [ ] Total processing budget.
+- [x] Total processing budget (~682us < 2000us).
 
 **Gate:**
 $$T_{processing} < T_s$$
@@ -767,25 +775,26 @@ với margin hợp lý.
 ---
 
 ### PHASE 11 -- Fixed-point
-- [ ] Chọn Q-format.
-- [ ] Xác định range.
-- [ ] Chống overflow.
-- [ ] Port Complementary/Kalman theo phạm vi đề tài.
-- [ ] So sánh float/fixed.
+- [x] Chọn Q-format (Q16.16).
+- [x] Xác định range.
+- [x] Chống overflow (giữ float cho tích trung gian).
+- [x] Port Complementary (chạy song song so float).
+- [x] Port Kalman (angle/bias Q16.16 + P float, max|e|=0.01° suôt 330s).
+- [x] So sánh float/fixed (xem `docs/measurements/drift_tune_fix_2026-09-28.md`, còn số Flash/RAM `pio run -t size`).
 
 **Gate:** có bảng accuracy/runtime/resource.
 
 ---
 
 ### PHASE 12 -- Evaluation
-- [ ] Static accuracy.
-- [ ] Drift ≥ 5 phút.
+- [x] Static accuracy (sơ bộ, xem `docs/measurements/baseline_2026-09-28.md`).
+- [x] Drift ≥ 5 phút (330s: gyro +10.5/-3.8°, CF/KF không trôi, xem `docs/measurements/drift_tune_fix_2026-09-28.md`).
 - [ ] Dynamic response.
 - [ ] Vibration.
-- [ ] RMSE/MAE.
-- [ ] Execution time.
-- [ ] Sampling jitter.
-- [ ] Float/fixed comparison.
+- [x] RMSE/MAE (tune sweep + std, xem file trên).
+- [x] Execution time (tổng ~764us).
+- [x] Sampling jitter (std ~2.1us, span 14us/330s).
+- [x] Float/fixed comparison (max|e| 0.01°).
 
 ---
 
