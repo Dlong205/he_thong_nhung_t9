@@ -317,6 +317,11 @@ uint8_t MPU6500_Init_I2C(void) {
     if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x1C, 0x08)) return 0;
     /* Bật ngắt Data Ready trên chân INT */
     if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x38, 0x01)) return 0;
+    
+    /* QUAN TRỌNG: Cấu hình INT_PIN_CFG (0x37)
+     * Ghi 0x10 (INT_ANYRD_2CLEAR) để cờ ngắt tự động xóa khi ta đọc bất kỳ thanh ghi nào (vd: đọc Data)
+     * Nếu không có dòng này, chân INT có thể bị treo hoặc không phát xung mới! */
+    if (I2C_WriteReg(MPU6500_I2C_ADDRESS, 0x37, 0x10)) return 0;
 
     return 1;
 }
