@@ -1,3 +1,4 @@
+// SV2 - Baseline acc + gyro int, tự viết (không DMP/lib).
 #include "attitude.h"
 #include <math.h>
 #define RAD2DEG 57.29578f

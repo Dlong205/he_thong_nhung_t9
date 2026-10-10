@@ -5,6 +5,7 @@
 typedef struct {
   float ax, ay, az;   // g
   float gx, gy, gz;   // dps, da tru bias
+  float mx, my, mz;   // Gauss (QMC5883P, da tru hard-iron). 0 nếu không có mag.
   float dt;           // s
   uint32_t ts_ms;
 } SensorData_t;
@@ -14,6 +15,7 @@ typedef struct {
   float roll_gyro, pitch_gyro;
   float roll_cf, pitch_cf;
   float roll_kalman, pitch_kalman;
+  float yaw_raw, yaw_tilt; // deg [-180,180]. 0 nếu không có mag.
 } Attitude_t;
 
 // Cau hinh he thong (khoa theo de K03)

@@ -20,6 +20,8 @@ Debug/
 Release/
 bin/
 obj/
+.pio/
+.pioenvs/
 
 # Keil MDK-ARM specific
 *.uvgui.*
@@ -75,3 +77,4 @@ Thumbs.db
 .idea/
 *.swp
 *~
+.vscode/

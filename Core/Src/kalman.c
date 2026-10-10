@@ -1,3 +1,5 @@
+// SV2 - Kalman 2-state [angle; bias] float, tự viết (không lib).
+// Predict/update đầy đủ theo README §8.4. Q/R đã tune (0.001/0.003/0.03).
 #include "kalman.h"
 void kalman_init(Kalman_t *k) {
   k->angle = 0; k->bias = 0; k->P00 = 0; k->P01 = 0; k->P10 = 0; k->P11 = 0;
