@@ -109,7 +109,36 @@ void oled_puts(uint8_t page, uint8_t x, const char *s) {
   }
 }
 
+void oled_puts_medium(uint8_t x, uint8_t y, const char *s) {
+  if (!s) return;
+  while (*s && x <= 120) {
+    uint8_t c = (uint8_t)*s++;
+    if (c < 32 || c > 127) c = '?';
+    const uint8_t *g = FONT[c - 32];
+    uint8_t cx = x;
+    for (uint8_t i = 0; i < 5; i++) {
+      for (uint8_t gy = 0; gy < 7; gy++) {
+        if (!(g[i] & (1u << gy))) continue;
+        for (uint8_t dx = 0; dx < ((i == 1 || i == 3) ? 2 : 1); dx++) {
+          for (uint8_t dy = 0; dy < 2; dy++) {
+            uint8_t py = y + gy * 2 + dy;
+            if (py < 64) s_fb[py >> 3][cx + dx] |= 1u << (py & 7);
+          }
+        }
+      }
+      cx += (i == 1 || i == 3) ? 2 : 1;
+    }
+    x += 8; // 7 cột nét + 1 cột cách chữ
+  }
+}
+
+void oled_draw_grid(void) {
+  for (uint8_t p = 0; p < 8; p++) s_fb[p][63] |= 0xFF;
+  for (uint8_t x = 0; x < 128; x++) s_fb[3][x] |= 0x80;
+}
+
 void oled_printf(uint8_t page, const char *fmt, ...) {
+  if (page > 7) return;
   char buf[22]; // 128px / 6px = 21 ký tự/dòng
   va_list ap;
   va_start(ap, fmt);
@@ -119,6 +148,8 @@ void oled_printf(uint8_t page, const char *fmt, ...) {
   memset(s_fb[page], 0, 128);
   oled_puts(page, 0, buf);
 }
+
+uint8_t oled_next_page(void) { return s_next_page; }
 
 static bool set_pos(uint8_t page, uint8_t col) {
   uint8_t c = (uint8_t)(col + OLED_COL_OFFSET); // bù cột cho SH1106

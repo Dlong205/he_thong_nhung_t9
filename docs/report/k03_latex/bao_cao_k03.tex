@@ -1,0 +1,554 @@
+% Báo cáo K03 theo bố cục mẫu "Xử lý tiếng vang trong tín hiệu âm thanh".
+% Biên dịch: tectonic bao_cao_k03.tex --outdir .
+% Các mục \CanBoSung là thông tin chưa có chứng cứ trong repository; không thay
+% bằng kết quả dự đoán. Hình được tạo bởi make_figures.py từ CSV gốc.
+\documentclass[14pt,a4paper,oneside]{extreport}
+\usepackage[left=30mm,right=20mm,top=20mm,bottom=20mm]{geometry}
+\usepackage{fontspec}
+\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{\setmainfont{Liberation Serif}}
+\setsansfont{DejaVu Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=0.84]
+\usepackage{polyglossia}
+\setdefaultlanguage{vietnamese}
+\usepackage{amsmath,amssymb,booktabs,longtable,array,multirow}
+\usepackage{graphicx,float,caption,subcaption}
+\usepackage{setspace}
+\usepackage{titlesec,tocloft,needspace}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
+\usepackage{indentfirst}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{microtype}
+\graphicspath{{figures/}}
+\hypersetup{hypertexnames=false,colorlinks=false,pdfborder={0 0 0},pdftitle={Báo cáo đồ án K03 Ước lượng góc nghiêng MPU6500},pdfauthor={Nhóm thực hiện đề tài K03}}
+% Word reference: Times New Roman 14 pt, measured baseline 24.15 pt.
+\setstretch{1}
+\makeatletter
+\renewcommand\normalsize{\@setfontsize\normalsize{14bp}{24.15bp}\abovedisplayskip=10pt\belowdisplayskip=10pt}
+\makeatother
+\AtBeginDocument{\normalsize
+\renewcommand{\contentsname}{MỤC LỤC}
+\renewcommand{\listfigurename}{MỤC LỤC CÁC HÌNH VẼ}
+\renewcommand{\listtablename}{MỤC LỤC BẢNG BIỂU}
+\renewcommand{\bibname}{TÀI LIỆU THAM KHẢO}}
+\raggedbottom
+\emergencystretch=2em
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.2}
+\renewcommand{\contentsname}{MỤC LỤC}
+\renewcommand{\listfigurename}{MỤC LỤC CÁC HÌNH VẼ}
+\renewcommand{\listtablename}{MỤC LỤC BẢNG BIỂU}
+\renewcommand{\bibname}{TÀI LIỆU THAM KHẢO}
+\renewcommand{\cfttoctitlefont}{\hfill\normalfont\bfseries\fontsize{14}{17}\selectfont}
+\renewcommand{\cftaftertoctitle}{\hfill}
+\renewcommand{\cftloftitlefont}{\hfill\normalfont\bfseries\fontsize{14}{17}\selectfont}
+\renewcommand{\cftafterloftitle}{\hfill}
+\renewcommand{\cftlottitlefont}{\hfill\normalfont\bfseries\fontsize{14}{17}\selectfont}
+\renewcommand{\cftafterlottitle}{\hfill}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftbeforeloftitleskip}{0pt}
+\setlength{\cftbeforelottitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{18pt}
+\setlength{\cftafterloftitleskip}{18pt}
+\setlength{\cftafterlottitleskip}{18pt}
+\renewcommand{\cftchappresnum}{CHƯƠNG }
+\renewcommand{\cftchapaftersnum}{.}
+\setlength{\cftchapnumwidth}{30mm}
+\renewcommand{\cftfigpresnum}{Hình }
+\renewcommand{\cftfigaftersnum}{.}
+\setlength{\cftfignumwidth}{25mm}
+\renewcommand{\cfttabpresnum}{Bảng }
+\renewcommand{\cfttabaftersnum}{.}
+\setlength{\cfttabnumwidth}{25mm}
+\setlength{\cftbeforechapskip}{8pt}
+\setlength{\cftbeforesubsecskip}{1pt}
+\setlength{\parindent}{1cm}
+\setlength{\parskip}{6pt}
+\setlist[itemize]{nosep,leftmargin=1.2cm}
+\setlist[enumerate]{nosep,leftmargin=1.2cm}
+\captionsetup{font=normalsize,labelfont=normalfont,labelsep=period,justification=centering,skip=8pt}
+\titleformat{\chapter}[hang]{\bfseries\centering\fontsize{14}{18}\selectfont}{CHƯƠNG \thechapter.}{0.5em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{16pt}
+\titleformat{\section}{\bfseries\fontsize{14}{17}\selectfont}{\thesection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{12pt}{6pt}
+\titleformat{\subsection}{\bfseries\fontsize{14}{17}\selectfont}{\thesubsection.}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{9pt}{4pt}
+\pagestyle{plain}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\fontsize{14}{17}\selectfont\thepage}\renewcommand{\headrulewidth}{0pt}}
+\setlength{\footskip}{10mm}
+\newcommand{\CanBoSung}[1]{\textit{[Cần bổ sung: #1]}}
+\newcommand{\ChoAnhThucTe}[2]{%
+\begin{figure}[htbp]\centering
+\fbox{\begin{minipage}[c][75mm][c]{0.86\textwidth}\centering
+\textbf{VỊ TRÍ ẢNH SẢN PHẨM THỰC TẾ}\\[8pt]
+#1\\[5pt]\small Chèn ảnh thật, ghi thời điểm chụp và phiên bản mạch.
+\end{minipage}}
+\caption{#2}
+\end{figure}}
+\newcommand{\degree}{\ensuremath{^{\circ}}}
+\newcommand{\unit}[1]{\,\mathrm{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,columns=fullflexible,showstringspaces=false}
+
+\input{thong_tin.tex}
+\begin{document}
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{tikzpicture}[remember picture,overlay]
+\draw[line width=3bp] ([xshift=94.4bp,yshift=-106.9bp]current page.north west)
+ rectangle ([xshift=529.3bp,yshift=-717.2bp]current page.north west);
+\node[anchor=north,inner sep=0pt,font=\fontsize{14bp}{17bp}\selectfont] at
+ ([xshift=311.85bp,yshift=-139.1bp]current page.north west) {HỌC VIỆN KỸ THUẬT MẬT MÃ};
+\node[anchor=north,inner sep=0pt,font=\bfseries\fontsize{14bp}{17bp}\selectfont] at
+ ([xshift=311.85bp,yshift=-161.2bp]current page.north west) {KHOA ĐIỆN TỬ - VI MẠCH};
+\node[anchor=north west,inner sep=0pt] at
+ ([xshift=225.7bp,yshift=-204.8bp]current page.north west)
+ {\includegraphics[trim=60.13bp 133.92bp 61.41bp 120.26bp,clip,width=172.3bp,height=159.7bp]{logo_hoc_vien.png}};
+\node[anchor=north,inner sep=0pt,font=\bfseries\fontsize{22bp}{26bp}\selectfont] at
+ ([xshift=311.85bp,yshift=-379.5bp]current page.north west) {BÁO CÁO MÔN XỬ LÝ TÍN HIỆU SỐ};
+\node[anchor=north,inner sep=0pt,font=\bfseries\fontsize{16bp}{19bp}\selectfont] at
+ ([xshift=311.85bp,yshift=-423.2bp]current page.north west) {ĐỀ TÀI};
+\node[anchor=north,inner sep=0pt,align=center,font=\bfseries\fontsize{16bp}{20bp}\selectfont] at
+ ([xshift=311.85bp,yshift=-456.8bp]current page.north west)
+ {ƯỚC LƯỢNG GÓC NGHIÊNG MPU6500\\BỘ LỌC BÙ VÀ KALMAN TỰ VIẾT\\TRÊN STM32F103};
+\node[anchor=north west,inner sep=0pt,font=\fontsize{14bp}{19bp}\selectfont] at
+ ([xshift=125bp,yshift=-534bp]current page.north west)
+ {\renewcommand{\arraystretch}{1.05}%
+  \begin{tabular}{@{}p{157bp}@{}l@{}}
+  \textbf{Giảng viên hướng dẫn:} & \GiangVien\\[5bp]
+  \textbf{Thực hiện:} & \Nhom\\[5bp]
+  \textbf{Thành viên:} & \SinhVienMot\\[2bp]
+   & \SinhVienHai\\[2bp]
+   & \SinhVienBa\\[2bp]
+   & \SinhVienBon
+  \end{tabular}};
+\node[anchor=north,inner sep=0pt,font=\bfseries\fontsize{14bp}{17bp}\selectfont] at
+ ([xshift=311.85bp,yshift=-686.2bp]current page.north west) {Hà Nội, 2026};
+\end{tikzpicture}
+\null
+\end{titlepage}
+
+\pagenumbering{gobble}
+\chapter*{LỜI CẢM ƠN}
+Trong quá trình thực hiện đề tài “Ước lượng góc nghiêng MPU6500: bộ lọc bù và Kalman tự viết trên STM32F103”, chúng em đã vận dụng kiến thức về xử lý tín hiệu số và hệ thống nhúng để xây dựng chương trình, tìm hiểu cảm biến và tổ chức các phép đo thực nghiệm.
+
+Chúng em xin gửi lời cảm ơn đến ThS. Nguyễn Thanh Ngọc vì những kiến thức và định hướng chuyên môn đã giúp nhóm tiếp cận quá trình thiết kế hệ thống, lập trình ngoại vi và đánh giá thuật toán. Nhóm cũng cảm ơn các thành viên đã phối hợp trong quá trình phát triển module, tích hợp chương trình và tổng hợp kết quả.
+
+Do kiến thức và kinh nghiệm thực nghiệm còn hạn chế, báo cáo khó tránh khỏi thiếu sót. Chúng em mong nhận được góp ý để hoàn thiện phương pháp đo, cách trình bày và hiểu biết về xử lý dữ liệu cảm biến trên vi điều khiển.
+
+\begin{flushright}Nhóm sinh viên thực hiện\end{flushright}
+\clearpage
+\pagenumbering{roman}
+\chapter*{MỤC LỤC}\makeatletter\@starttoc{toc}\makeatother
+\clearpage
+\chapter*{MỤC LỤC CÁC HÌNH VẼ}\addcontentsline{toc}{chapter}{MỤC LỤC CÁC HÌNH VẼ}\makeatletter\@starttoc{lof}\makeatother
+\clearpage
+\chapter*{MỤC LỤC BẢNG BIỂU}\addcontentsline{toc}{chapter}{MỤC LỤC BẢNG BIỂU}\makeatletter\@starttoc{lot}\makeatother
+\clearpage
+
+\chapter*{BẢNG DANH MỤC CHỮ VIẾT TẮT}
+\addcontentsline{toc}{chapter}{BẢNG DANH MỤC CHỮ VIẾT TẮT}
+\begin{longtable}{|C{23mm}|C{54mm}|C{64mm}|}
+\hline
+Chữ viết tắt & Tên đầy đủ & Ý nghĩa trong báo cáo\\ \hline
+\hline
+\endfirsthead
+\hline Chữ viết tắt & Tên đầy đủ & Ý nghĩa trong báo cáo\\ \hline
+\endhead
+MPU & Motion Processing Unit & Cảm biến quán tính MPU6500\\ \hline
+MEMS & Microelectromechanical Systems & Cảm biến vi cơ điện tử\\ \hline
+IMU & Inertial Measurement Unit & Khối đo gia tốc và vận tốc góc\\ \hline
+CF & Complementary Filter & Bộ lọc bù\\ \hline
+KF & Kalman Filter & Bộ lọc Kalman\\ \hline
+I2C & Inter-Integrated Circuit & Bus giao tiếp hai dây\\ \hline
+EXTI & External Interrupt & Ngắt ngoài của STM32\\ \hline
+DWT & Data Watchpoint and Trace & Bộ đếm chu kỳ để đo thời gian\\ \hline
+LSB & Least Significant Bit & Đơn vị giá trị thô của cảm biến\\ \hline
+MAE & Mean Absolute Error & Sai số tuyệt đối trung bình\\ \hline
+RMSE & Root Mean Square Error & Căn sai số bình phương trung bình\\ \hline
+\hline
+\end{longtable}
+\clearpage
+
+\pagenumbering{arabic}
+\chapter*{LỜI NÓI ĐẦU}
+\addcontentsline{toc}{chapter}{LỜI NÓI ĐẦU}
+\section*{Lý do chọn đề tài}
+Ước lượng góc nghiêng được ứng dụng trong hệ thống cân bằng và giám sát chuyển động. Gia tốc kế xác định hướng trọng lực tốt khi đứng yên nhưng nhạy với rung; tích phân gyroscope cho đáp ứng nhanh nhưng tích lũy độ trôi. Kết hợp hai nguồn đo giúp khảo sát chất lượng ước lượng và khả năng xử lý thời gian thực trên vi điều khiển.
+
+\section*{Mục tiêu đề tài}
+Xây dựng hệ thống STM32 và MPU6500 lấy mẫu 500~Hz, hiệu chuẩn cảm biến và so sánh bốn phương pháp: góc gia tốc, tích phân gyro, bộ lọc bù và Kalman hai trạng thái. Các nội dung đánh giá gồm bản số thực và số cố định, thời gian thực thi, độ trôi, đáp ứng động và sai số theo góc tham chiếu.
+
+\section*{Phạm vi và phương pháp thực hiện}
+Hệ thống dùng STM32F103C8T6, I2C1, ngắt Data Ready, bộ đếm DWT và USART1; Python phục vụ ghi và phân tích dữ liệu. Bản tích hợp hiện tại có OLED bốn ô, telemetry nhị phân, giao diện Web Serial và PWM servo 50~Hz do STM32 phát trên PA1/TIM2\_CH2. Phép đo ngày 20/10/2026 xác nhận 1\,728 gói hợp lệ, chu kỳ trung bình $1\,997{,}58~\mu\mathrm{s}$ và thời gian xử lý trung bình $677{,}72~\mu\mathrm{s}$. Góc servo vẫn là góc lệnh, vì vậy chưa được dùng làm chuẩn độc lập để kết luận sai số tuyệt đối dưới $1\degree$.
+
+\section*{Nội dung báo cáo}
+Chương 1 trình bày cơ sở lý thuyết và nguồn sai số; Chương 2 mô tả phần cứng, phần mềm và thiết kế thí nghiệm; Chương 3 phân tích số đo, đối chiếu yêu cầu K03 và chừa vị trí cho ảnh sản phẩm; Chương 4 quy định phép kiểm chứng cần thực hiện trên bản tích hợp cuối. Phần cuối tổng hợp kết quả, giới hạn và hướng phát triển.
+
+\clearpage
+\chapter{CƠ SỞ LÝ THUYẾT VỀ ƯỚC LƯỢNG GÓC NGHIÊNG}
+
+\section{Cảm biến quán tính MPU6500}
+MPU6500 tích hợp gia tốc kế và gyroscope ba trục. Gia tốc kế cung cấp các thành phần $a_x,a_y,a_z$; gyroscope cung cấp vận tốc góc $\omega_x,\omega_y,\omega_z$. Trong cấu hình của dự án, thang đo gia tốc là $\pm2g$ (16\,384 LSB/$g$), thang đo gyro là $\pm250\degree/\mathrm{s}$ (131 LSB/($\degree/\mathrm{s}$)). Dữ liệu được đọc liên tiếp 14 byte bắt đầu từ thanh ghi \texttt{ACCEL\_XOUT\_H}; hai byte nhiệt độ không tham gia tính góc. Thanh ghi \texttt{WHO\_AM\_I} được dùng để kiểm tra đúng cảm biến, với giá trị mong đợi \texttt{0x70}~\cite{mpu_reg}.
+
+Tần số dữ liệu cấu hình bằng bộ chia mẫu: $f_s=1\unit{kHz}/(1+1)=500\unit{Hz}$, tương ứng chu kỳ danh định $T_s=2\unit{ms}$. Cấu hình lọc thông thấp trong chip làm giảm thành phần nhiễu tần số cao nhưng cũng tạo độ trễ. Do đó, phép đo rung và đáp ứng nhanh trong Chương~3 phải được hiểu trong giới hạn của cấu hình cảm biến này.
+
+\section{Hiệu chuẩn cảm biến}
+Khi cảm biến đứng yên, giá trị gyro lý tưởng bằng không. Bias của từng trục được tính từ $N$ mẫu:
+\begin{equation}\label{eq:gyro_bias}
+\hat b_g=\frac{1}{N}\sum_{k=1}^{N}\omega_k,\qquad
+\omega_k^{\mathrm{corr}}=\omega_k-\hat b_g.
+\end{equation}
+Chương trình lấy 1\,000 mẫu khi khởi động. Điều kiện quan trọng là mạch phải đứng yên trong thời gian này; chuyển động khi hiệu chuẩn tạo bias sai và làm góc gyro trôi nhanh.
+
+Gia tốc kế được hiệu chuẩn bằng sáu tư thế, lần lượt đặt các trục $X,Y,Z$ cùng và ngược chiều trọng lực. Với trung bình hai mặt của một trục là $m_+$ và $m_-$, offset và scale được tính:
+\begin{equation}\label{eq:acc_cal}
+o=\frac{m_++m_-}{2},\qquad s=\frac{2}{m_+-m_-},\qquad a^{\mathrm{corr}}=(a^{\mathrm{raw}}-o)s.
+\end{equation}
+Phương pháp này hiệu chỉnh lệch không và hệ số khuếch đại theo từng trục. Nó không hiệu chỉnh hoàn toàn sai lệch vuông góc giữa các trục hay sai số do gá đặt bằng tay.
+
+\section{Bốn phương pháp ước lượng góc}
+\subsection{Góc từ gia tốc kế}
+Khi gia tốc chuyển động nhỏ so với trọng lực, Roll và Pitch được tính từ hướng của vector gia tốc:
+\begin{align}
+\phi_{\mathrm{acc}}&=\operatorname{atan2}(a_y,a_z),\label{eq:roll_acc}\\
+\theta_{\mathrm{acc}}&=\operatorname{atan2}\!\left(-a_x,\sqrt{a_y^2+a_z^2}\right).\label{eq:pitch_acc}
+\end{align}
+Góc từ gia tốc có mốc dài hạn nhưng nhiễu khi bàn rung hoặc cảm biến chịu gia tốc tuyến tính. Hai công thức cũng không cho biết Yaw.
+
+\subsection{Tích phân gyroscope}
+Với chu kỳ mẫu $\Delta t$, góc từ gyro được cập nhật theo:
+\begin{equation}\label{eq:gyro_int}
+\hat\phi_{g,k}=\hat\phi_{g,k-1}+\omega_{x,k}^{\mathrm{corr}}\Delta t.
+\end{equation}
+Pitch được tính tương tự từ $\omega_y$. Phương pháp phản ứng nhanh và ít chịu nhiễu gia tốc, nhưng sai số bias còn lại $\delta b$ tạo trôi gần $\delta b\,t$. Góc gyro cũng không có mốc tuyệt đối nếu không hiệu chỉnh bằng nguồn đo khác.
+
+\subsection{Bộ lọc bù}
+Bộ lọc bù kết hợp dự đoán ngắn hạn của gyro với mốc dài hạn từ gia tốc:
+\begin{equation}\label{eq:cf}
+\hat\phi_k=\alpha\left(\hat\phi_{k-1}+\omega_{x,k}^{\mathrm{corr}}\Delta t\right)
+ +(1-\alpha)\phi_{\mathrm{acc},k}.
+\end{equation}
+Nhóm dùng $\alpha=0{,}98$ tại $\Delta t=0{,}002\unit{s}$. Hằng số thời gian rời rạc xấp xỉ $\tau=\alpha\Delta t/(1-\alpha)=0{,}098\unit{s}$. $\alpha$ quá nhỏ làm nhiễu gia tốc lọt qua; $\alpha$ quá lớn khiến góc hồi về mốc tuyệt đối chậm.
+
+\begin{figure}[htbp]\centering
+\resizebox{\textwidth}{!}{\input{figures/bo_loc_bu.tex}}
+\caption{Sơ đồ kết hợp góc dự đoán từ gyro và góc gia tốc trong bộ lọc bù.}\label{fig:cf}
+\end{figure}
+Hình~\ref{fig:cf} cho thấy góc sau lọc được lưu lại để làm trạng thái của mẫu kế tiếp. Nhánh gyro bảo toàn thay đổi ngắn hạn, còn nhánh gia tốc hiệu chỉnh mốc dài hạn. Hệ số $\alpha$ được dùng như một tham số đánh đổi giữa độ mịn và tốc độ hiệu chỉnh.
+
+\subsection{Bộ lọc Kalman hai trạng thái}
+Bộ lọc dùng trạng thái $x=[\phi\ b]^\mathsf{T}$ gồm góc và bias gyro còn lại. Mô hình dự đoán là:
+\begin{equation}\label{eq:kf_state}
+\hat x_k^-=
+\begin{bmatrix}1&-\Delta t\\0&1\end{bmatrix}\hat x_{k-1}
++\begin{bmatrix}\Delta t\\0\end{bmatrix}\omega_{x,k},
+\qquad z_k=\begin{bmatrix}1&0\end{bmatrix}x_k+v_k.
+\end{equation}
+Trong đó $z_k=\phi_{\mathrm{acc},k}$. Mỗi mẫu gồm dự đoán hiệp phương sai, tính sai lệch đo, hệ số Kalman và hiệu chỉnh:
+\begin{align}
+P_k^-&=F P_{k-1}F^\mathsf{T}+Q,\\
+y_k&=z_k-H\hat x_k^-,\qquad S_k=HP_k^-H^\mathsf{T}+R,\\
+K_k&=P_k^-H^\mathsf{T}S_k^{-1},\\
+\hat x_k&=\hat x_k^-+K_ky_k,\qquad P_k=(I-K_kH)P_k^-.
+\end{align}
+Firmware dùng hai đối tượng Kalman riêng cho Roll và Pitch; bộ tham số đang dùng là $Q_{\rm angle}=0{,}001$, $Q_{\rm bias}=0{,}003$, $R=0{,}03$. Nguồn cấu trúc bộ lọc được đối chiếu với~\cite{lauszus}; phần triển khai C, lượng tử hóa và đo đạc là phần việc của nhóm.
+
+\begin{figure}[htbp]\centering
+\input{figures/kalman_cycle.tex}
+\caption{Chu trình tính toán Kalman hai trạng thái tại mỗi mẫu.}\label{fig:kf}
+\end{figure}
+Hình~\ref{fig:kf} mô tả một chu trình cho một trục. Hai bộ lọc Roll và Pitch có trạng thái riêng, dùng chung chu kỳ mẫu. Việc tách khối dự đoán và hiệu chỉnh giúp theo dõi ý nghĩa của từng biến trong mã và kiểm tra tính nhất quán giữa mô hình toán học với chương trình.
+
+\section{Biểu diễn số cố định Q16.16}
+Với định dạng Q16.16, giá trị thực $x$ được lượng tử hóa thành số nguyên $q=\operatorname{round}(x2^{16})$. Độ phân giải một LSB bằng khoảng $1{,}526\times10^{-5}$. Tích của hai số Q16.16 được tính bằng trung gian 64 bit rồi dịch phải 16 bit. Bản Kalman của dự án dùng Q16.16 cho góc và bias nhưng vẫn dùng \texttt{float} cho các phần tử $P,Q,R$, vì các đại lượng rất nhỏ có thể thấp hơn độ phân giải Q16.16. Do đó đây là bản \emph{số cố định một phần}, không phải một Kalman thuần số nguyên.
+
+\section{Chỉ số đánh giá}
+Nếu $\theta_i^{\rm ref}$ là góc tham chiếu độc lập và $\hat\theta_i$ là góc ước lượng, sai số là $e_i=\hat\theta_i-\theta_i^{\rm ref}$. Các chỉ số dùng để đánh giá độ chính xác gồm:
+\begin{equation}\label{eq:metrics}
+\mathrm{MAE}=\frac{1}{N}\sum_{i=1}^{N}|e_i|,\qquad
+\mathrm{RMSE}=\sqrt{\frac{1}{N}\sum_{i=1}^{N}e_i^2},\qquad
+\mathrm{bias}=\frac{1}{N}\sum_{i=1}^{N}e_i.
+\end{equation}
+Khi chưa có góc tham chiếu độc lập, độ lệch chuẩn của một đoạn đứng yên chỉ cho biết \emph{độ ổn định/độ mịn}, không đủ để kết luận sai số tuyệt đối dưới $1\degree$. Đáp ứng động cần góc tham chiếu thay đổi theo thời gian; độ trễ được ước lượng từ bước chuyển hoặc tương quan chéo, kèm giới hạn lấy mẫu telemetry 50~Hz.
+
+\subsection{Phân biệt độ chính xác, độ ổn định và độ trôi}
+Một hệ thống có thể cho đường góc rất mượt nhưng vẫn lệch khỏi góc thực một giá trị cố định. Độ lệch chuẩn nhỏ chỉ chứng minh các mẫu gần nhau. Vì vậy, phép đánh giá độ chính xác phải sử dụng cùng một mốc góc cho cả bốn phương pháp và không lấy trung bình của chính kết quả bộ lọc làm chuẩn.
+
+Để đánh giá độ trôi, có thể so sánh trung bình của cửa sổ đầu và cuối khi cảm biến đứng yên. Cách lấy trung bình này giảm ảnh hưởng của một điểm ngoại lai so với việc chỉ trừ hai mẫu đơn lẻ. Khi báo cáo sai số tĩnh, cần nêu số mẫu, thời gian bỏ quá độ, góc tham chiếu và cách gá cảm biến. Khi báo cáo thời gian thực thi, cần nêu ranh giới đoạn mã được đo; thời gian của một hàm Kalman khác với tổng thời gian đọc cảm biến và cập nhật mọi bộ lọc.
+
+\subsection{Phạm vi áp dụng của mô hình hai trục}
+Trong chương trình, Roll được cập nhật từ tốc độ quay quanh trục X và Pitch từ trục Y. Cách tính này phù hợp với bài thử nghiêng từng trục và phạm vi quay hạn chế. Khi có chuyển động ba chiều phức tạp, tốc độ quay theo hệ trục cảm biến không đồng nhất hoàn toàn với đạo hàm các góc Euler. Vì vậy, phạm vi kết luận của báo cáo tập trung vào ước lượng góc nghiêng Roll/Pitch và các chuyển động đã khảo sát.
+
+\input{phan_tich_ly_thuyet.tex}
+
+\chapter{THIẾT KẾ VÀ XÂY DỰNG HỆ THỐNG}
+
+\section{Cấu trúc phần cứng}
+Hệ thống dùng Blue Pill STM32F103C8T6 ở 72~MHz, module GY-6500, màn OLED I2C, servo SG90 và cầu nối USB--UART CH340. Từ kế QMC5883P dùng cho phần mở rộng Yaw. Hình~\ref{fig:block} cho thấy đường dữ liệu và vai trò của từng khối. STM32 nhận ngắt Data Ready, đọc một mẫu cảm biến, cập nhật bốn phương pháp tính góc và gửi dữ liệu sau mỗi mười mẫu.
+
+\begin{figure}[htbp]\centering
+\resizebox{\textwidth}{!}{\input{figures/so_do_he_thong.tex}}
+\caption{Sơ đồ khối chức năng của hệ thống K03.}\label{fig:block}
+\end{figure}
+
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Các kết nối chính giữa STM32 và ngoại vi.}\label{tab:pinmap}
+\begin{tabular}{|L{38mm}|C{33mm}|L{72mm}|}
+\hline Khối & Chân STM32 & Vai trò\\ \hline
+MPU6500, OLED, QMC5883P & PB6/PB7 & I2C1 SCL/SDA, chung bus 400~kHz\\ \hline
+MPU6500 INT & PA0 & EXTI0, cạnh lên Data Ready\\ \hline
+Servo SG90/MG90S & PA1/TIM2\_CH2 & PWM 50~Hz do STM32 phát trực tiếp\\ \hline
+CH340 & PA9/PA10 & USART1 TX/RX, truyền dữ liệu và lệnh\\ \hline
+LED trên mạch & PC13 & Báo trạng thái chạy\\ \hline
+\hline
+\end{tabular}
+\end{table}
+
+MPU6500, OLED và la bàn dùng nguồn logic 3,3~V; servo dùng 5~V và chung mass với STM32. Chân \texttt{NCS} của module MPU được kéo lên 3,3~V để chọn I2C, \texttt{AD0} nối GND để chọn địa chỉ \texttt{0x68}. Hình~\ref{fig:wiring} trình bày kết nối ở mức module theo pin map của dự án. Sơ đồ này mô tả các chân tín hiệu và nguồn, không thay thế bản vẽ mạch in hay ảnh mô hình thực tế.
+
+\begin{figure}[htbp]\centering
+\input{figures/noi_chan.tex}
+\caption{Sơ đồ nối chân giữa Blue Pill và các module ngoại vi.}\label{fig:wiring}
+\end{figure}
+
+\section{Cấu hình ngoại vi và thanh ghi}
+Nền firmware dùng \texttt{framework = stm32cube} trong PlatformIO. HAL được dùng để khởi tạo hệ thống và clock; I2C1, EXTI0, USART1, TIM2 PWM, LED và DWT được thao tác ở mức thanh ghi. Việc dùng bộ thư viện STM32Cube trong PlatformIO cần được mô tả đúng tên công cụ; nếu yêu cầu nộp project STM32CubeIDE riêng, cần xuất và kiểm tra project đó trước khi bảo vệ.
+
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Các cấu hình chính của bộ điều khiển và cảm biến.}\label{tab:config}
+\begin{tabular}{|L{36mm}|L{48mm}|L{60mm}|}
+\hline Thành phần & Cấu hình & Ý nghĩa\\ \hline
+RCC & HSE 8~MHz, PLL $\times9$ & SYSCLK 72~MHz\\ \hline
+APB1/APB2 & 36/72~MHz & I2C1/TIM2; GPIO/USART1\\ \hline
+I2C1 & FREQ=36, CCR=30, TRISE=12 & Fast mode khoảng 400~kHz\\ \hline
+MPU6500 & gyro $\pm250\degree$/s, acc $\pm2g$, DIV=1 & Dữ liệu danh định 500~Hz\\ \hline
+EXTI0 & PA0, cạnh lên, ISR đặt cờ & Xử lý chính ở vòng lặp\\ \hline
+TIM2 & PSC=71, ARR=19999 & PWM 50~Hz, 1~$\mu$s/tick\\ \hline
+DWT & CYCCNT tại 72~MHz & Đo thời gian thực thi\\ \hline
+\hline
+\end{tabular}
+\end{table}
+
+Trước khi đưa dữ liệu vào thuật toán, firmware kiểm tra \texttt{WHO\_AM\_I=0x70}. Đường đọc I2C được viết để xử lý trình tự START, ADDR, ACK/NACK, STOP và timeout. ISR EXTI chỉ đặt cờ; đọc cảm biến và cập nhật bộ lọc nằm trong vòng lặp chính. Điều này giữ thời gian xử lý ngắt ngắn và cho phép đo chi phí của toàn bộ chu trình.
+
+\section{Kiến trúc phần mềm và luồng xử lý}
+Các module được chia thành tầng board/thanh ghi, driver cảm biến, hiệu chuẩn, thuật toán, telemetry và ứng dụng PC. Giao diện giữa các tầng nằm trong các file \texttt{Core/Inc/*.h}. Phần kiến trúc trong báo cáo mô tả phiên bản tích hợp lưu tại commit \texttt{422588d}; các số đo trong Chương~3 được phân biệt theo phiên bản firmware để bảo đảm khả năng đối chiếu.
+
+
+
+Giá trị $\Delta t=0{,}002\unit{s}$ hiện được dùng trong các bộ lọc. Khi cập nhật OLED hoặc giao tiếp I2C kéo dài quá chu kỳ mẫu, một cờ ngắt dạng Boolean có thể làm mất thông tin về số mẫu bị bỏ qua. Đây là giới hạn cần kiểm chứng bằng log của bản firmware cuối; hướng sửa là dùng $\Delta t$ đo thực từ DWT hoặc bộ đếm số lần Data Ready.
+
+\begin{figure}[p]\centering
+\input{figures/luu_do_chinh.tex}
+\caption{Lưu đồ xử lý của chương trình tích hợp.}\label{fig:main_flow}
+\end{figure}
+Lưu đồ ở Hình~\ref{fig:main_flow} thể hiện các quyết định lấy mẫu và chia tần số telemetry. Trong lúc chờ mẫu, chương trình có thể nhận lệnh và cập nhật máy trạng thái servo. Các bộ lọc chỉ chạy sau khi đọc được dữ liệu cảm biến hợp lệ. Phần xử lý trong ngắt được giới hạn ở việc ghi nhận sự kiện.
+
+\subsection{Giao diện giữa các module}
+Bảng~\ref{tab:modules} tóm tắt các giao diện chính. Driver trả dữ liệu thô hoặc đơn vị vật lý; thuật toán nhận góc gia tốc, tốc độ góc và chu kỳ mẫu. Cách phân chia này giúp kiểm tra từng khối trước khi tích hợp. Việc phân công tên thành viên cụ thể phải khớp với lịch sử Git của nhóm.
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Các module và giao diện chính của firmware.}\label{tab:modules}
+\begin{tabular}{|L{37mm}|L{56mm}|L{49mm}|}\hline
+Module & Giao diện tiêu biểu & Vai trò\\\hline
+\texttt{mpu6500} & \texttt{mpu6500\_read\_raw()} & Đọc mẫu sáu trục\\\hline
+\texttt{calibration} & \texttt{acc\_apply()} & Hiệu chỉnh offset và scale\\\hline
+\texttt{attitude} & \texttt{attitude\_acc()} & Góc gia tốc, tích phân gyro\\\hline
+\texttt{complementary} & \texttt{cf\_update()} & Cập nhật bộ lọc bù\\\hline
+\texttt{kalman} & \texttt{kalman\_update()} & Ước lượng góc và bias\\\hline
+\texttt{servo\_ref} & \texttt{servoref\_update()} & Máy trạng thái góc lệnh\\\hline
+\texttt{telemetry} & \texttt{telemetry\_send\_bin()} & Đóng gói dữ liệu đo\\\hline
+\end{tabular}
+\end{table}
+
+\section{Giao thức truyền dữ liệu và công cụ PC}
+Firmware tích hợp đóng gói 85 byte nhị phân ở 50~Hz, gồm dấu đồng bộ, thời gian, dữ liệu cảm biến, bốn góc Roll/Pitch, thời gian thực thi, chu kỳ mẫu, giá trị fixed, góc servo và Yaw. CRC-8 được dùng để phát hiện gói lỗi. Tốc độ dữ liệu thô là $85\times50=4250$~byte/s, tương đương khoảng 42,5~kbit/s trên UART 8N1, phù hợp 115\,200~baud.
+
+\texttt{bin\_logger.py} giải mã gói nhị phân và ghi CSV; \texttt{eval\_ref.py} tính sai số so với cột \texttt{ref}; \texttt{tune\_grid.py} quét tham số bộ lọc. Giao diện web trong \texttt{MPU6500\_Attitude\_Lab\_Source/dist} dùng Web Serial, kiểm LEN/CRC, vẽ bốn phương pháp, thống kê thời gian, mô hình 3D và xuất CSV trực tiếp. Trình duyệt gửi lệnh \texttt{BIN 1}/\texttt{BIN 0} và \texttt{REF/SEQ} qua cùng USART1; STM32 phát PWM servo trực tiếp trên PA1/TIM2\_CH2.
+
+\subsection{Tổ chức gói dữ liệu nhị phân}
+Gói dữ liệu có dấu đồng bộ \texttt{AA 55}, độ dài và mã kiểm tra ở cuối. Việc ghi lại thời gian, góc của từng phương pháp và cột góc lệnh trong cùng một gói giúp ghép các kết quả theo cùng mốc thời gian. Bảng~\ref{tab:packet} mô tả cấu trúc theo mã telemetry của dự án.
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Cấu trúc gói telemetry 85 byte.}\label{tab:packet}
+\begin{tabular}{|C{24mm}|L{39mm}|L{80mm}|}\hline
+Byte & Trường & Nội dung\\\hline
+0--2 & Đồng bộ, độ dài & \texttt{AA 55}, LEN = 81\\\hline
+3--6 & Dấu thời gian & \texttt{ts\_ms}, số nguyên 32 bit\\\hline
+7--62 & Dữ liệu đo & Sáu giá trị cảm biến và tám góc Roll/Pitch\\\hline
+63--66 & Đo thời gian & \texttt{exec\_us} và \texttt{dt\_us}\\\hline
+67--74 & Góc fixed & Roll và Pitch của bản Kalman fixed\\\hline
+75 & Góc lệnh & \texttt{ref}, số nguyên có dấu\\\hline
+76--83 & Yaw & Góc thô và góc bù nghiêng\\\hline
+84 & CRC & Mã kiểm tra gói dữ liệu\\\hline
+\end{tabular}
+\end{table}
+
+\section{Thiết kế thí nghiệm đối chứng}
+Servo SG90 có các kịch bản lệnh: \texttt{STATIC} cho bảy góc $-60\degree$, $-45\degree$, $-30\degree$, $0\degree$, $30\degree$, $45\degree$, $60\degree$; \texttt{STEP} cho chuỗi $0\to30\to60\to0\degree$; \texttt{DRIFT} giữ $0\degree$ trong 330~s. Cảm biến phải gắn chắc để trục servo tương ứng Roll; Pitch chỉ được xem như kênh quan sát, không được tính sai số với \texttt{ref} của servo. Sau mỗi lần đổi góc cần bỏ đoạn quá độ trước khi lấy MAE và RMSE.
+
+SG90 là cơ cấu vòng hở, nên góc lệnh không tự động bằng góc thực. Để kiểm tra ngưỡng sai số tĩnh dưới $1\degree$ một cách chặt chẽ, cần hiệu chuẩn góc servo bằng thước đo góc hoặc thiết bị tham chiếu độc lập, rồi báo cáo bất định của chuẩn. Trong bộ dữ liệu hiện có, chưa có phép đo góc chuẩn độc lập tại nhiều nấc, nên báo cáo chưa kết luận độ chính xác tuyệt đối hoặc độ trễ đối chứng của hệ thống.
+
+\subsection{Trình tự thu thập và xử lý số liệu}
+Trước khi bắt đầu một phép đo, nhóm cố định cảm biến, kiểm tra giao tiếp và giữ yên trong giai đoạn hiệu chuẩn gyro. Sau đó, cùng một lần lấy mẫu được dùng để tính cả bốn phương pháp; các trường dữ liệu được ghi vào CSV cùng dấu thời gian. Với thí nghiệm đổi góc, cần ghi cả thời điểm đổi góc tham chiếu và bỏ đoạn quá độ trước khi tính sai số tĩnh.
+
+Các phép thử được bố trí theo ba nhóm: đặt yên dài hạn để quan sát trôi; xoay hoặc đổi góc để xem đáp ứng; tác động rung để so sánh khả năng giảm nhiễu. Khi so sánh float với fixed, hai triển khai nhận cùng đầu vào và được đối chiếu theo từng mẫu. Điều kiện mạch, phiên bản mã và tham số bộ lọc cần được ghi lại để tránh quy kết khác biệt do điều kiện đo thành khác biệt do thuật toán.
+
+\input{phan_tich_thiet_ke.tex}
+
+\chapter{KẾT QUẢ THỰC NGHIỆM VÀ ĐÁNH GIÁ}
+
+\section{Nguồn dữ liệu và điều kiện đo}
+Các đồ thị drift, rung và xoay tay dùng dữ liệu ngày 28/09/2026 của firmware cũ và được giữ làm bằng chứng lịch sử. Phép đo bản tích hợp ngày 20/10/2026 dùng file \texttt{roll\_servo\_wire\_reference\_final\_2026-10-20.csv}: telemetry nhị phân 50~Hz, servo ESP32-S3 GPIO21 và mốc dây để kiểm tra khả năng quay về vị trí ban đầu. Hai nhóm số liệu được trình bày riêng để không gộp các cấu hình firmware khác nhau.
+
+\section{Kết quả hiệu chuẩn}
+Gyro bias khi khởi động trên một lần đo là $(+9{,}38,-3{,}04,+1{,}38)\degree/\mathrm{s}$ cho $X/Y/Z$. Bias này phụ thuộc cảm biến, nhiệt độ và điều kiện lúc hiệu chuẩn; báo cáo không xem nó là hằng số chung cho mọi lần bật mạch. Kết quả sáu mặt của gia tốc kế được tóm tắt ở Bảng~\ref{tab:acc_cal}.
+
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Offset và hệ số scale từ phép hiệu chuẩn sáu mặt.}\label{tab:acc_cal}
+\begin{tabular}{|L{48mm}|C{27mm}|C{27mm}|C{27mm}|}
+\hline Đại lượng & X & Y & Z\\ \hline
+Offset ($g$) & $-0{,}0052$ & $+0{,}0141$ & $-0{,}0170$\\ \hline
+Hệ số scale & $1{,}0139$ & $1{,}0027$ & $0{,}9970$\\ \hline
+\hline
+\end{tabular}
+\end{table}
+
+Sau hiệu chuẩn trên tư thế đặt phẳng, $a_z$ thay đổi từ khoảng $0{,}987g$ lên $1{,}000g$, $a_y$ từ $0{,}016g$ về khoảng $0{,}001g$. Các mặt được giữ bằng tay, đặc biệt mặt X còn lệch trục; vì thế cần ghi rõ giới hạn của phép hiệu chuẩn khi diễn giải độ chính xác tuyệt đối.
+
+\section{Độ ổn định khi đứng yên}
+Ở phép đo tĩnh sơ bộ, độ lệch chuẩn Roll tính từ gia tốc là khoảng $0{,}068\degree$; từ bộ lọc bù và Kalman khoảng $0{,}016\degree$. Hệ số giảm dao động xấp xỉ $0{,}068/0{,}016=4{,}25$. Pitch cho xu hướng tương tự ($0{,}065\degree$ so với $0{,}016$--$0{,}017\degree$). Đây là \emph{độ mịn}, không phải MAE so với góc thật. Phép đo \texttt{static.csv} gần đây cũng chỉ chứa $\mathrm{ref}=0\degree$; nó không thay thế thí nghiệm nhiều nấc góc.
+
+\section{Trôi trong 330 giây}
+Hình~\ref{fig:drift} thể hiện ba đường Roll lấy từ cùng file \texttt{drift5p.csv} trong 330~s. Góc gyro-only tăng khoảng $10{,}46\degree$; bộ lọc bù và Kalman dao động quanh một mốc gần như cố định. Bảng~\ref{tab:drift} trình bày các chỉ số đã ghi trong nhật ký đo.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{drift_330s.pdf}
+\caption{Trôi Roll trong 330 giây theo dữ liệu \texttt{drift5p.csv}.}\label{fig:drift}
+\end{figure}
+
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{So sánh độ trôi và dao động trong 330 giây.}\label{tab:drift}
+\begin{tabular}{|L{43mm}|C{34mm}|C{29mm}|C{27mm}|}
+\hline Phương pháp & Độ lệch đầu--cuối & Biên độ & Độ lệch chuẩn\\ \hline
+Gyro-only Roll & $+10{,}46\degree$ & $10{,}5\degree$ & $3{,}03\degree$\\ \hline
+Gyro-only Pitch & $-3{,}82\degree$ & $3{,}8\degree$ & $1{,}09\degree$\\ \hline
+Bộ lọc bù Roll & Gần $0\degree$ & $0{,}25\degree$ & $0{,}025\degree$\\ \hline
+Kalman Roll & Gần $0\degree$ & $0{,}15\degree$ & $0{,}024\degree$\\ \hline
+\hline
+\end{tabular}
+\end{table}
+
+Kết quả 330~s hỗ trợ nhận xét rằng hai bộ lọc không trôi đáng kể trong điều kiện đặt yên của phép đo cũ. Nó không chứng minh mọi điều kiện nhiệt độ hay rung đều không trôi; bản tích hợp cuối cần một log lặp lại với cùng quy trình.
+
+\section{Phép đo bàn servo trên bản tích hợp cuối}
+Servo được ra lệnh theo chuỗi $0\to30\to60\to90\to60\to30\to0\degree$, di chuyển với tốc độ đặt khoảng $1\degree/80$~ms. Bảng~\ref{tab:servo_final} dùng trung bình 100 mẫu ổn định cuối mỗi nấc và lấy nấc đầu làm mốc tương đối. Dây đánh dấu chỉ kiểm tra vị trí quay về $0\degree$; các giá trị $30/60/90\degree$ là góc lệnh servo, không phải số đo từ thước góc độc lập.
+
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Góc Kalman Roll tương đối trong phép đo servo ngày 20/10/2026.}\label{tab:servo_final}
+\begin{tabular}{|C{25mm}|C{34mm}|C{34mm}|C{30mm}|}
+\hline Góc lệnh & Chiều đi ($\degree$) & Chiều về ($\degree$) & Độ lệch chuẩn ($\degree$)\\ \hline
+$0\degree$ & $0{,}00$ & $-0{,}16$ & $0{,}012$--$0{,}022$\\ \hline
+$30\degree$ & $24{,}81$ & $28{,}36$ & $0{,}016$--$0{,}022$\\ \hline
+$60\degree$ & $51{,}77$ & $52{,}91$ & $0{,}013$\\ \hline
+$90\degree$ & $79{,}82$ & -- & $0{,}033$\\ \hline
+\hline
+\end{tabular}
+\end{table}
+
+Sai khác hai chiều tại lệnh $60\degree$ là $1{,}16\degree$ và tại $30\degree$ là $3{,}55\degree$, thể hiện độ rơ/cản cơ khí của cơ cấu. Góc quay về mốc dây lệch $-0{,}16\degree$, cho thấy khả năng lặp lại quanh điểm gốc trong lần thử này. Tỷ lệ giữa góc Kalman và góc lệnh không đạt một, nên dữ liệu không hỗ trợ tuyên bố ``sai số Kalman dưới $1\degree$''; nó chủ yếu chứng minh luồng đo tích hợp, độ ổn định tại nấc và ảnh hưởng của bàn servo.
+
+\section{So sánh bốn phương pháp khi xoay tay}
+Hình~\ref{fig:dynamic} dùng 1\,503 mẫu trong khoảng 30~s. Đây là phép thí nghiệm chung cho góc gia tốc, tích phân gyro, bộ lọc bù và Kalman. Đường gyro tích lũy lệch rõ sau quá trình xoay, còn hai đường hợp nhất cảm biến bám xu hướng của góc gia tốc và ít nhiễu hơn. Vì phép xoay tay không có góc tham chiếu độc lập, hình chỉ cho phép đánh giá xu hướng và độ trôi tương đối; không dùng để kết luận MAE hoặc ngưỡng sai số tĩnh $<1\degree$.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{bon_phuong_phap_dong.pdf}
+\caption{Bốn phương pháp trên cùng phép xoay tay; chưa có góc chuẩn độc lập.}\label{fig:dynamic}
+\end{figure}
+
+\section{Đáp ứng khi rung}
+Trong file \texttt{vibration.csv}, đoạn 10~s đầu gần như đứng yên và đoạn 10--20~s có tác động rung. Độ lệch chuẩn của góc gia tốc tăng từ $0{,}076\degree$ lên $1{,}102\degree$; bộ lọc bù ở đoạn rung là $0{,}101\degree$, còn Kalman là $0{,}064\degree$. Hình~\ref{fig:vibration} cho thấy các xung nhiễu của gia tốc được làm dịu khi kết hợp với gyro. Đoạn cuối của file vẫn còn rung, nên không dùng làm khoảng phục hồi sau rung.
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=\textwidth]{rung.pdf}
+\caption{Góc Roll trong phép đo rung, vùng tô là đoạn 10--20 giây.}\label{fig:vibration}
+\end{figure}
+
+\section{Tinh chỉnh tham số và so sánh float--fixed}
+Quét $\alpha$ ngoại tuyến trên đoạn tĩnh cho điểm nhỏ nhất của chỉ số RMSE quanh trung bình gia tốc tại $\alpha=0{,}98$ trong các giá trị đã thử. Vì mốc so sánh là chính tín hiệu gia tốc, chỉ số này phản ánh độ ổn định tương đối, không phải sai số so với góc thật.
+
+\begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
+\caption{Kết quả quét hệ số bộ lọc bù trên dữ liệu tĩnh.}\label{tab:alpha}
+\begin{tabular}{|C{20mm}|*{6}{C{17mm}|}}
+\hline $\alpha$ & 0,90 & 0,95 & 0,97 & 0,98 & 0,99 & 0,995\\ \hline
+RMSE ($\degree$) & 0,0173 & 0,0131 & 0,0114 & \textbf{0,0109} & 0,0127 & 0,0179\\ \hline
+\hline
+\end{tabular}
+\end{table}
+
+Trong phép đo 330~s, chênh lệch lớn nhất giữa góc Kalman float và bản Q16.16 một phần được ghi là $0{,}01\degree$ cho Roll/Pitch. Ở file tích hợp cuối, chênh lệch lớn nhất chỉ $0{,}00081\degree$. Đây là độ chênh giữa hai triển khai, không phải sai số so với góc chuẩn. Benchmark thời gian riêng từng hàm và số Flash/RAM vẫn cần đo nếu muốn kết luận về lợi ích hiệu năng của bản fixed.
+
+\section{Thời gian thực thi và jitter}
+File tích hợp cuối có 1\,728 gói hợp lệ, không có frame CRC lỗi. Chu kỳ mẫu có trung bình $1\,997{,}58~\mu\mathrm{s}$, độ lệch chuẩn $2{,}04~\mu\mathrm{s}$ và khoảng $1\,993$--$2\,002~\mu\mathrm{s}$, phù hợp mục tiêu 500~Hz. Trường \texttt{exec\_us} có trung bình $677{,}72~\mu\mathrm{s}$, khoảng $668$--$681~\mu\mathrm{s}$, thấp hơn chu kỳ 2~ms. Mốc đo \texttt{exec\_us} kết thúc sau cập nhật các bộ lọc và trước phần từ kế, đóng gói telemetry và đẩy OLED; do đó \texttt{dt\_us} mới là bằng chứng bao quát hơn cho lịch lấy mẫu khi các tác vụ nền cùng hoạt động.
+
+\section{Màn OLED và giao diện giám sát}
+OLED 128$\times$64 hiển thị bốn ô \texttt{ROLL}, \texttt{PITCH}, \texttt{YAW} và \texttt{REF}, mỗi góc có hai chữ số thập phân. Framebuffer 1~KB được gửi từng page; tốc độ 10 page/s làm một khung hoàn chỉnh mất khoảng 0,8~s nhưng hạn chế thời gian chiếm bus I2C. Giao diện web đã được rà soát với bộ giải mã packet 85 byte, CRC-8, biểu đồ, mô hình 3D, thống kê và xuất CSV. Web Serial hoạt động trên Chrome/Edge và Firefox 151+ bản desktop; trang phải chạy trên \texttt{localhost} hoặc HTTPS. Với Firefox, extension WebSerial cũ và sandbox của gói Snap có thể gây xung đột hoặc che thiết bị serial.
+
+\needspace{7\baselineskip}
+\section{Đối chiếu yêu cầu đề K03}
+\begin{longtable}{|L{44mm}|L{27mm}|L{64mm}|}
+\caption{Trạng thái bằng chứng đối với các yêu cầu chính.}\label{tab:requirements}\\
+\hline Yêu cầu & Trạng thái & Căn cứ và việc còn cần làm\\ \hline
+\endfirsthead
+\hline Yêu cầu & Trạng thái & Căn cứ và việc còn cần làm\\ \hline
+\endhead
+Tự viết bốn phương pháp tính góc & Có mã, có log & Module C riêng; Hình~\ref{fig:dynamic} dùng cùng một phép đo.\\ \hline
+500~Hz, hiệu chuẩn, ngắt Data Ready & Đã xác nhận bản cuối & 1\,728 gói; $dt=1\,997{,}58\pm2{,}04~\mu\mathrm{s}$, không có frame lỗi.\\ \hline
+Float và fixed point & Đã so sánh đầu ra & Lệch cực đại $0{,}00081\degree$; còn thiếu benchmark riêng và Flash/RAM.\\ \hline
+Kalman không trôi sau 5 phút & Có bằng chứng bản cũ & Log 330~s, Hình~\ref{fig:drift}; đo lặp lại trên bản cuối.\\ \hline
+Sai số tĩnh Kalman dưới $1\degree$ & Chưa kết luận & Cần góc chuẩn độc lập ở nhiều nấc servo, MAE/RMSE và bất định chuẩn.\\ \hline
+Độ trễ và đáp ứng bước & Có chuỗi nấc tĩnh & Đã có $0\to90\to0\degree$; chưa có góc thật theo thời gian để tách trễ cơ khí và thuật toán.\\ \hline
+OLED hoặc LED 7 đoạn & Đã tích hợp & Bố cục bốn ô đã có trong firmware; cần ảnh/video màn OLED thật cho hồ sơ nộp.\\ \hline
+Đồ thị realtime và mô hình 3D & Đã có Web Serial & Đã nối bộ giải mã binary/CRC; cần quay demo trực tiếp với mạch.\\ \hline
+Sơ đồ, báo cáo, video 3--5 phút & Có tài liệu thiết kế & Đã có sơ đồ nối chân, lưu đồ và số liệu; ảnh mạch và video là minh chứng riêng.\\ \hline
+\hline
+\end{longtable}
+
+\section{Nhận xét và giới hạn}
+Kết quả tĩnh và trôi dài hạn cho thấy cả bộ lọc bù lẫn Kalman đều khai thác được mốc trọng lực để hạn chế tích lũy sai số của gyro. Ở trạng thái tĩnh, chênh lệch độ lệch chuẩn giữa hai bộ lọc nhỏ. Trong đoạn rung đã khảo sát, Kalman cho độ lệch chuẩn thấp hơn bộ lọc bù, phù hợp với ưu điểm của việc hiệu chỉnh trạng thái bằng mô hình và hiệp phương sai.
+
+Các phép đo xoay tay và gõ bàn chưa tạo ra một kích thích có biên độ, tần số và góc chuẩn được kiểm soát. Do đó, kết quả phản ánh hành vi của hệ thống trong các điều kiện đã ghi, chưa cho phép suy rộng thành độ chính xác tuyệt đối hoặc đáp ứng tần số của toàn bộ hệ thống. Bàn servo cần được đối chiếu với một chuẩn góc độc lập trước khi dùng để kiểm tra ngưỡng sai số dưới $1\degree$.
+
+Về triển khai, số liệu tích hợp xác nhận nhịp lấy mẫu và thời gian phần lõi, nhưng chưa đo benchmark từng hàm. Phần Yaw hiện là mở rộng; từ kế đặt gần servo có thể chịu nhiễu từ, vì vậy cần hiệu chuẩn hard/soft iron, bù nghiêng và mốc hướng độc lập trước khi chấm độ chính xác Yaw.
+
+\input{phan_tich_ket_qua.tex}
+
+\input{anh_san_pham.tex}
+
+\input{quy_trinh_kiem_chung.tex}
+
+\chapter*{KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}
+\addcontentsline{toc}{chapter}{KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}
+Nhóm đã xây dựng hệ thống ước lượng Roll/Pitch dùng STM32F103 và MPU6500 gồm driver I2C/EXTI mức thanh ghi, hiệu chuẩn, bốn phương pháp ước lượng, Kalman Q16.16 một phần, OLED bốn ô, telemetry nhị phân và giao diện Web Serial/3D. Dữ liệu lịch sử cho thấy bộ lọc bù và Kalman giảm độ dao động tĩnh từ khoảng $0{,}068\degree$ xuống $0{,}016\degree$ và giữ góc ổn định trong 330~s. Phép đo tích hợp cuối xác nhận 1\,728 frame hợp lệ, nhịp $1\,997{,}58\pm2{,}04~\mu\mathrm{s}$, thời gian lõi trung bình $677{,}72~\mu\mathrm{s}$ và chênh float--fixed cực đại $0{,}00081\degree$.
+
+Kết quả servo xác nhận khả năng lặp lại mốc dây và cho thấy độ rơ theo chiều quay, nhưng góc lệnh không phải góc chuẩn độc lập. Vì vậy, tiêu chí sai số tĩnh Kalman dưới $1\degree$ và độ trễ thuật toán tuyệt đối vẫn chưa được chứng minh. Trước khi nộp, nhóm cần bổ sung thông tin thành viên, ảnh/video mạch thật và demo Web Serial; khi có thước góc hoặc cảm biến chuẩn thì đo lại nhiều nấc để tính MAE/RMSE. Phần Yaw chỉ nên kết luận định lượng sau hiệu chuẩn từ trường và bù nghiêng.
+
+\clearpage
+\renewcommand{\bibname}{TÀI LIỆU THAM KHẢO}
+\begin{thebibliography}{9}\raggedright
+\addcontentsline{toc}{chapter}{TÀI LIỆU THAM KHẢO}
+\bibitem{rm0008} STMicroelectronics, \emph{RM0008: STM32F101xx, STM32F102xx, STM32F103xx, STM32F105xx and STM32F107xx Reference Manual}.
+\bibitem{stm32_ds} STMicroelectronics, \emph{STM32F103x8/STM32F103xB Datasheet}.
+\bibitem{mpu_spec} InvenSense, \emph{MPU-6500 Product Specification}, Rev. 1.3.
+\bibitem{mpu_reg} InvenSense, \emph{MPU-6500 Register Map and Descriptions}, Rev. 2.1.
+\bibitem{pedley} M. Pedley, \emph{Tilt Sensing Using a Three-Axis Accelerometer}, Freescale Application Note AN3461.
+\bibitem{kalman} R. E. Kalman, ``A New Approach to Linear Filtering and Prediction Problems,'' \emph{Journal of Basic Engineering}, 1960.
+\bibitem{lauszus} K. Lauszus, ``A Practical Approach to Kalman Filter and How to Implement It,'' TKJ Electronics, 2012.
+\bibitem{repo} Nhóm thực hiện K03, \emph{Mã nguồn và ghi chú đo đạc đề tài}, repository \texttt{he\_thong\_nhung\_t9}, các file trong \texttt{docs/measurements}, 2026.
+\end{thebibliography}
+
+\end{document}

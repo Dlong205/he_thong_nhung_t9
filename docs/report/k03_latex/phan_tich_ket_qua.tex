@@ -1,0 +1,46 @@
+\section{Đọc kết quả theo cùng điều kiện thí nghiệm}
+Các hình trong Chương~3 có ích khi được đọc cùng cấu hình phép đo. Đường đứng yên 330~s chứng minh hành vi dài hạn trong một lần đặt board yên. Đường xoay tay chứng minh hành vi khi góc thay đổi nhưng không có chuẩn góc độc lập. Đường rung chứng minh độ suy giảm dao động của đầu ra trong điều kiện kích thích đã ghi. Ba phép thử bổ sung cho nhau; không phép thử riêng lẻ nào đủ để khẳng định mọi tiêu chí của đề K03. Cách đối chiếu hợp lý là nêu biến quan sát, điều kiện tác động, chỉ số và giới hạn của từng phép đo.
+
+\subsection{Phép đo đứng yên và trôi dài hạn}
+Trong file \,\texttt{drift5p.csv}\, có 16\,519 mẫu log ở khoảng 50~Hz, trải khoảng 330~s. Gyro-only Roll đổi khoảng $+10{,}46\degree$, còn hai đường hợp nhất giữ quanh một mốc. Kết quả này phù hợp cơ chế tích lũy bias của tích phân và cơ chế kéo về mốc trọng lực của CF/Kalman. Nếu chỉ trừ một mẫu đầu và một mẫu cuối, số đo rất nhạy với ngoại lệ; nên so trung bình cửa sổ đầu và cuối, đồng thời báo độ lệch chuẩn và khoảng dao động của từng cửa sổ. Bảng~\ref{tab:drift} là tóm tắt từ nhật ký cũ, chưa ghi bất định qua nhiều lần lặp.
+
+Một đường ``gần như không trôi'' trong 330~s không có nghĩa bias tuyệt đối bằng không. Nếu mặt bàn nghiêng hoặc hiệu chuẩn gia tốc còn sai, bộ lọc có thể hội tụ về một góc sai nhưng ổn định. Vì vậy, kết luận được hỗ trợ bởi phép đo này là độ ổn định dài hạn trong một điều kiện đặt yên, không phải độ chính xác tuyệt đối. Việc có cả biên độ và độ lệch chuẩn giúp tách một xung ngoại lệ ngắn ra khỏi dao động thường xuyên; nên xem đồ thị gốc để kiểm tra có va chạm nhẹ trong quá trình đo hay không.
+
+\subsection{Phép đo động xoay tay}
+File \,\texttt{dynamic.csv}\, có khoảng 1\,503 hàng trong 30~s. Khi xoay, gia tốc cho mốc góc tức thời nhưng nhiễu, gyro-only cho đường liên tục nhưng có thể lệch mốc, CF/Kalman kết hợp hai nguồn. Nhật ký ghi chênh lệch gyro-only khoảng $35{,}4\degree$ trên phép xoay liên tục. Đại lượng này cần được hiểu theo cách tạo đồ thị và mốc khởi tạo; không được gọi là sai số độ chính xác nếu chưa đo góc thật ở từng thời điểm. Đồ thị chung vẫn rất hữu ích để minh họa bốn đặc tính và phát hiện sai dấu hoặc sai trục khi tích hợp.
+
+Một cách đánh giá có kiểm soát hơn là đặt board trên bàn quay với các nấc góc biết trước và một bước có thời điểm lệnh xác định. Lúc đó, ở mỗi nấc có thể so bias tĩnh; quanh bước có thể so thời gian đáp ứng. Cùng một chuỗi dữ liệu phải được đưa vào cả bốn phương pháp, vì thay đổi tốc độ xoay tay giữa các lần đo làm mất cơ sở so sánh. Khi chưa có bàn quay được hiệu chuẩn, nên giữ phép xoay tay như minh họa định tính và không dựng bảng MAE từ nó.
+
+\subsection{Phép đo rung và giới hạn diễn giải}
+Ở đoạn rung 10--20~s của file \,\texttt{vibration.csv}\,, độ lệch chuẩn góc gia tốc khoảng $1{,}102\degree$, CF khoảng $0{,}101\degree$, Kalman khoảng $0{,}064\degree$. Tỷ số theo độ lệch chuẩn cho thấy tín hiệu Kalman dao động ít hơn góc gia tốc trong đoạn đó. Tuy nhiên, lực gõ bàn không được định lượng theo biên độ hoặc phổ tần, và 10~s cuối vẫn có rung. Vì vậy, phép thử không thể cho một hàm truyền rung hay chứng minh thuật toán luôn chính xác hơn CF trong mọi loại chuyển động.
+
+Để lặp lại phép rung, cần giữ cùng cách gá, cùng khoảng cách tới nguồn rung, cùng dải tần và thời gian tác động. Nếu có động cơ rung, nên ghi điện áp và vị trí của nó. Nếu không có, mô tả cách gõ và số lần gõ vẫn tốt hơn bỏ trống điều kiện. Khi phân tích, lấy một đoạn nền đứng yên và đoạn rung có cùng độ dài, rồi so cả độ lệch chuẩn, phần trăm mẫu vượt ngưỡng và độ trễ hồi về sau rung. Chỉ nên tính đoạn hồi phục nếu log thật có khoảng dừng rung rõ ràng.
+
+\section{Đánh giá tham số và quan hệ giữa các chỉ số}
+\subsection{Hệ số bộ lọc bù}
+Bảng~\ref{tab:alpha} cho thấy giá trị RMSE nhỏ nhất trong những $\alpha$ đã quét là 0,98. Mốc so sánh của lần quét là trung bình góc gia tốc trên đoạn tĩnh. Do đó, bảng xếp hạng này ưu tiên tín hiệu ổn định quanh một trung bình nội bộ; nó không kiểm tra độ trễ STEP hay sai số theo góc thật. Nếu chọn $\alpha$ chỉ theo độ mịn tĩnh, hệ số quá cao có thể làm kết quả chậm sau một bước quay. Lần đo tiếp theo nên đánh giá đa tiêu chí: sai số tại các nấc có chuẩn, độ lệch chuẩn khi đứng yên, thời gian xác lập sau bước và nhiễu khi rung.
+
+Với Kalman, $Q$ và $R$ cũng có quan hệ đánh đổi tương tự nhưng trong cấu trúc có ước lượng bias. Thử một bộ tham số trên dữ liệu đã dùng để chọn chính bộ đó có nguy cơ cho kết quả tốt giả tạo. Nên chia dữ liệu thành tập chọn tham số và tập kiểm tra riêng, hoặc ít nhất dùng hai lần đo độc lập với cùng quy trình. Mọi bộ tham số được công bố phải khớp với mã firmware tạo ra số liệu; nếu chạy replay Python mà firmware dùng số khác, cần ghi rõ đây là thử ngoại tuyến.
+
+\subsection{Độ chính xác, độ mịn và hiệu quả chống trôi}
+Ba câu hỏi định lượng phải được trả lời bằng ba chỉ số khác nhau. ``Góc có đúng không?'' cần chuẩn độc lập và MAE/RMSE/bias. ``Đường có mượt không?'' cần độ lệch chuẩn hoặc phổ nhiễu trong một đoạn đứng yên. ``Đường có trôi không?'' cần so đầu--cuối trên thời gian đủ dài. Một phương pháp có thể cho độ lệch chuẩn rất nhỏ vì làm trơn mạnh, nhưng đồng thời chậm hoặc lệch mốc. Khi báo cáo tổng hợp, nên đặt các chỉ số cạnh nhau cho từng phương pháp và giải thích lý do ưu tiên theo ứng dụng.
+
+Nếu sử dụng góc lệnh servo làm chuẩn tạm thời, các chỉ số nên được ghi là ``sai lệch so với góc lệnh'', không gọi là ``sai số tuyệt đối''. Sau khi hiệu chuẩn servo, báo thêm bất định của chuẩn và sai khác theo chiều quay. Chỉ khi bất định đủ nhỏ và kết quả lặp lại qua nhiều nấc mới có cơ sở xác nhận điều kiện $<1\degree$ của đề. Một nấc $0\degree$ không đại diện cho dải $\pm60\degree$, vì sai lệch scale và sai trục có thể tăng theo góc.
+
+\section{Đánh giá tính thời gian thực}
+\subsection{Ngân sách 2 ms cho một mẫu}
+Ở 500~Hz, tổng công việc bắt buộc cho một mẫu phải hoàn thành trước khi có mẫu kế tiếp, tức dưới 2~ms trong điều kiện bình thường. Log tích hợp cuối có \texttt{exec\_us} trung bình $677{,}72~\mu\mathrm{s}$, cực đại $681~\mu\mathrm{s}$ và chu kỳ mẫu $1\,997{,}58\pm2{,}04~\mu\mathrm{s}$. Kết quả xác nhận phần lõi còn khoảng dự phòng và lịch lấy mẫu được duy trì trong lần chạy 1\,728 frame. Vì điểm kết thúc \texttt{exec\_us} nằm trước từ kế, telemetry và OLED, chi phí riêng từng khối vẫn cần đo nếu muốn tối ưu sâu hơn.
+
+Đo bằng DWT cần đặt điểm bắt đầu và kết thúc nhất quán. Nếu đồng hồ bắt đầu ngay trước đọc I2C và dừng sau cập nhật Kalman, số đo không bao gồm OLED và gửi gói. Nếu điểm kết thúc sau tất cả tác vụ trong vòng lặp, số đo phản ánh tổng tải nhưng khó quy lỗi cho một khối. Nên đo cả hai, và trình bày sơ đồ phạm vi đo. Các bảng hiệu năng phải ghi compiler optimization, clock, baud, trạng thái các module và số mẫu đo. Điều này đặc biệt quan trọng khi so sánh float và Q16.16 một phần.
+
+\subsection{Jitter và độ trễ đầu cuối}
+Jitter chu kỳ của log tích hợp có độ lệch chuẩn $2{,}04~\mu\mathrm{s}$, gần số đo cũ $1{,}84~\mu\mathrm{s}$. Độ trễ đầu cuối từ lệnh servo tới đồ thị PC gồm thêm thời gian chờ PWM 20~ms, động học servo, lấy mẫu tối đa 2~ms, xử lý, chờ telemetry tối đa 20~ms và trễ truyền/hiển thị. Do các thành phần này khác nhau, jitter lấy mẫu nhỏ không có nghĩa đồ thị PC đáp ứng tức thời. Khi công bố độ trễ, phải nói rõ đo từ mốc nào tới mốc nào.
+
+Ở nhịp telemetry 50~Hz, một điểm xuất hiện cách nhau khoảng 20~ms. Nếu ước lượng độ trễ bằng thời điểm vượt ngưỡng trên các điểm đó, bất định do lượng tử hóa thời gian đã ở cỡ một chu kỳ hiển thị. Nội suy đồ thị có thể làm đường mượt nhưng không tạo thêm thông tin thời gian thực. Muốn đo độ trễ ở mức mili giây, cần log dấu thời gian nội bộ cho sự kiện đổi ref và từng mẫu 500~Hz, hoặc đo đồng thời chân PWM và một tín hiệu phản ánh góc thật bằng thiết bị ngoài.
+
+\section{Giới hạn của phiên bản hiện tại và thứ tự hoàn thiện}
+Mã nguồn hiện tại tích hợp driver MPU6500 mức thanh ghi, CF, Kalman float/fixed, OLED, từ kế tùy chọn và gói telemetry; servo của phép đo cuối do ESP32-S3 điều khiển độc lập. Log mới đủ chứng minh hoạt động tích hợp, nhịp lấy mẫu và độ nhất quán số học. Bảng kết quả cũ vẫn có giá trị giải thích drift/rung, nhưng được giữ nhãn phiên bản lịch sử.
+
+Các việc còn lại theo thứ tự ưu tiên là: chụp ảnh OLED và toàn mạch; quay demo Web Serial/3D; đo góc bằng chuẩn độc lập khi có dụng cụ; benchmark từng hàm và bộ nhớ; hiệu chuẩn/bù nghiêng từ kế. Sau mỗi phép thử cần ghi phiên bản và file log để không trộn bằng chứng giữa các cấu hình.
+
+Ảnh sản phẩm trong mục tiếp theo được để trống có chủ đích. Khi chụp, nên thấy đủ dây nguồn, tên chân quan trọng, hướng trục cảm biến và cơ cấu gá; không dùng ảnh đồ họa mô phỏng để thay thế bằng chứng phần cứng. Ảnh màn OLED cần chụp cùng một tư thế có góc tham chiếu; ảnh màn PC cần thấy đồ thị bốn phương pháp và dấu thời gian. Mỗi ảnh nên ghi ngày, cấu hình chạy và chú thích ngắn về điều nó chứng minh.

@@ -2,17 +2,22 @@
 
 ## Ước lượng góc nghiêng bằng MPU6500 -- Complementary Filter và Kalman Filter tự viết trên STM32
 
-> **Phiên bản định hướng:** STM32F103 + MPU6500 + SPI mức thanh ghi + Data Ready Interrupt + Complementary/Kalman + Python realtime/3D  
+> **Phiên bản triển khai:** STM32F103 + hai bus I2C tách biệt + Data Ready Interrupt + Complementary/Kalman + OLED + telemetry binary + Web Serial/3D
 > **Mục tiêu:** bám yêu cầu đề tài mức Khó, có phần lập trình thanh ghi rõ ràng, thuật toán tự viết, đo đạc định lượng và demo trực quan.
 
-## Tiến độ thực tế (2026-10-05, SV3 — giữ nguyên, chưa có mạch để làm tiếp)
+## Tiến độ thực tế (2026-10-20 — bản tích hợp cuối)
 
-- Đã chốt và kiểm chứng: Blue Pill F103C8 + GY-6500, **I2C1 PB6/PB7 400kHz** (đổi từ SPI cho khớp đề K03), nguồn 3.3V, AD0=GND addr `0x68`, `WHO_AM_I=0x70` ổn định.
-- Debug qua **USB-CDC micro-USB** (`0483:5740` -> `/dev/ttyACM0`, lúc reset nhảy ACM1), 115200. ST-Link chỉ giữ SWDIO/SWCLK/GND (bỏ 3.3V để tránh xung nguồn). Chi tiết: `docs/block_diagram/pinmap.md`.
-- Firmware modular đã chạy: `mpu6500/calib/attitude/cf/kalman(float)+cffix(Q16.16)/telemetry/timing(DWT)`, poll **500Hz**, telemetry CSV **50Hz**, gyro bias `+9.38/-3.04/+1.38 dps`, exec **~658-685us < 2000us**. Chi tiết: `docs/block_diagram/register_config.md`, số đo: `docs/measurements/baseline_2026-09-28.md`.
-- Python đã chạy: `serial_logger` + `analysis` (std acc ~0.068°, CF/KF ~0.016°), `realtime_plot`, `visualizer_3d_fast` solid 20fps Roll/Pitch (bỏ Yaw, chờ la bàn mở rộng).
-- SV3 đã xong: acc/gyro/CF α=0.98/Kalman 2-state float + fixed Q16.16, tune bảng, drift 330s CF/KF không trôi, float-fix max|e|=0.01°, jitter std ~2us. Xem `docs/measurements/drift_tune_fix_2026-09-28.md`, `dynamic_2026-09-28.md`.
-- Chưa làm (do chưa có mạch, giữ nguyên tiến trình): I2C/EXTI register thật (đang `Wire` + `attachInterrupt`), benchmark từng khối Acc/Gyro/CF/Kalman + số Flash/RAM, servo đối chứng + đo độ trễ, OLED/LED7 hiển thị, Yaw từ kế HMC/QMC (mở rộng), packet binary.
+- Hai nhóm bus: OLED và QMC5883P dùng chung **I2C1 PB6/PB7 400 kHz**; MPU6500 dùng riêng **I2C2 PB10/PB11 100 kHz**. Lỗi trên bus hiển thị/từ kế không giữ SDA/SCL của MPU.
+- Vòng xử lý MPU chạy danh định **500 Hz**, telemetry binary 85 byte có CRC8 ở **50 Hz**, UART1 115200 qua CP2102/CH340. File đo cuối `roll_servo_wire_reference_final_2026-10-20.csv` có 1.728 mẫu hợp lệ và 0 frame lỗi.
+- Trong phép đo cuối: `dt_us` trung bình **1997,58 us**, jitter chuẩn **2,04 us**; `exec_us` trung bình **677,72 us**, cực đại **681 us**, thấp hơn chu kỳ 2 ms. Kalman float và fixed lệch cực đại **0,00081°**.
+- OLED SSD1306/SH1106 hiển thị bốn ô `ROLL`, `PITCH`, `YAW`, `REF`; framebuffer 1 KB được gửi từng page trên I2C1 PB6/PB7.
+- Khung 3D trên web có trục O–X–Y–Z cố định; phần Yaw hiển thị góc thô, bù nghiêng, đồ thị so sánh và trạng thái mẫu mới/cũ từ QMC5883P. Nút đặt mốc Yaw dùng để quan sát quay tương đối.
+- Website trong `MPU6500_Attitude_Lab_Source/dist/` dùng Web Serial, giải mã đúng packet binary/CRC8, vẽ bốn phương pháp, mô hình 3D, thống kê thời gian và xuất CSV. Chạy local qua HTTP trên Chrome/Edge hoặc Firefox 151+ bản desktop.
+- Cấu hình hiện tại điều khiển servo trực tiếp bằng STM32 PA1/TIM2_CH2, PWM 50 Hz; website gửi `REF/SEQ` qua cùng cổng UART telemetry. Bộ dữ liệu lịch sử ngày 20/10/2026 từng dùng ESP32-S3 cho thấy sai lệch quay về mốc dây **0,16°**, độ rơ khoảng **1,16° tại 60°** và **3,55° tại 30°**.
+- Log lịch sử vẫn cung cấp phép drift 330 s, hiệu chuẩn sáu mặt, rung và so sánh bốn phương pháp. Yaw từ QMC5883P là phần mở rộng; dữ liệu hiện chỉ dùng để đánh giá độ ổn định và lặp lại, chưa khẳng định độ chính xác tuyệt đối.
+- Giới hạn còn lại: góc servo là góc lệnh, dây chỉ tạo mốc quay về nên chưa phải chuẩn góc độc lập. Báo cáo không dùng kết quả này để khẳng định sai số tuyệt đối Kalman dưới 1°.
+
+> Các phần phía dưới giữ lại kế hoạch phát triển ban đầu để truy vết quá trình thực hiện. Khi có khác biệt, cấu hình triển khai và số đo ngày 20/10/2026 ở trên là trạng thái hiện hành.
 
 ---
 
@@ -21,7 +26,7 @@
 Xây dựng một hệ thống nhúng có khả năng:
 
 1. Đọc dữ liệu gia tốc và vận tốc góc 6 trục từ MPU6500.
-2. Giao tiếp MPU6500 với STM32F103 bằng SPI.
+2. Giao tiếp MPU6500 với STM32F103 bằng I2C2 100 kHz.
 3. Tự xây dựng các phần driver mức thanh ghi thay vì phụ thuộc hoàn toàn vào HAL.
 4. Lấy mẫu ổn định, mục tiêu ban đầu 500 Hz.
 5. Hiệu chuẩn accelerometer và gyroscope.
@@ -52,13 +57,13 @@ Xây dựng một hệ thống nhúng có khả năng:
         │ Acc + Gyro  │
         └──────┬──────┘
                │
-       SPI + INT/Data Ready
+       I2C2 + INT/Data Ready
                │
                ▼
 ┌─────────────────────────────────────────────┐
 │                  STM32F103                  │
 │                                             │
-│ RCC / GPIO / SPI / EXTI / TIM / USART      │
+│ RCC / GPIO / I2C / EXTI / TIM / USART      │
 │        ↑ phần register-level                │
 │                    │                        │
 │             MPU6500 Driver                  │

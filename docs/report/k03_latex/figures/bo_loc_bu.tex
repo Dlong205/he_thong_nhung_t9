@@ -1,0 +1,15 @@
+\begin{tikzpicture}[x=1mm,y=1mm,>=Latex,font=\fontsize{11}{13}\selectfont,
+ block/.style={draw,rectangle,align=center,minimum height=14mm,inner sep=2mm}]
+\node[block,text width=37mm] (predict) at (42,18) {Dự đoán bằng gyro\\$\hat\phi_{k-1}+\omega_k\Delta t$};
+\node[block,text width=14mm] (alpha) at (91,18) {$\alpha$};
+\node[block,text width=24mm] (acc) at (42,-14) {Góc từ gia tốc\\$\phi_{\mathrm{acc},k}$};
+\node[block,text width=14mm] (beta) at (91,-14) {$1-\alpha$};
+\node[draw,circle,minimum size=8mm,inner sep=0pt] (sum) at (124,2) {$+$};
+\draw[->] (0,18) node[left] {$\omega_k$} -- (predict);
+\draw[->] (predict) -- (alpha); \draw[->] (acc) -- (beta);
+\draw[->] (alpha.east) -| (sum.north); \draw[->] (beta.east) -| (sum.south);
+\draw[->] (sum) -- (147,2) node[right] {$\hat\phi_k$};
+\node[block,text width=28mm,minimum height=11mm] (delay) at (91,48) {Lưu một mẫu\\$z^{-1}$};
+\draw[->] (139,2) |- (delay.east); \draw[->] (delay.west) -| (predict.north);
+\node[font=\fontsize{10}{12}\selectfont] at (42,41) {$\hat\phi_{k-1}$};
+\end{tikzpicture}

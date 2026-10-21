@@ -1,0 +1,20 @@
+\begin{tikzpicture}[node distance=6mm,>=Latex,font=\fontsize{11}{13}\selectfont,
+ block/.style={draw,rectangle,align=center,text width=70mm,minimum height=11mm,inner sep=2mm},
+ decision/.style={draw,diamond,aspect=3.5,align=center,text width=48mm,inner sep=1mm},
+ term/.style={draw,ellipse,align=center,text width=36mm,minimum height=9mm}]
+\node[term] (start) {Bắt đầu};
+\node[block,below=of start] (init) {Clock, I2C, USART, DWT\\Khởi tạo MPU, OLED, servo và la bàn};
+\node[block,below=of init] (cal) {Hiệu chuẩn gyro; nạp offset/scale gia tốc\\Khởi tạo CF và Kalman};
+\node[block,below=of cal] (cmd) {Xử lý lệnh PC và máy trạng thái servo};
+\node[decision,below=of cmd] (ready) {Có mẫu mới\\hoặc hết timeout?};
+\node[block,below=of ready] (read) {Đọc burst MPU6500\\Đổi đơn vị và hiệu chuẩn};
+\node[block,below=of read] (alg) {Tính Acc, gyro, CF, Kalman\\và bản fixed; ghi thời gian DWT};
+\node[decision,below=of alg] (div) {Đủ 10 mẫu?};
+\node[block,below=of div] (output) {Đọc la bàn, gửi gói dữ liệu 50 Hz\\Cập nhật OLED theo lịch giảm tần suất};
+\draw[->] (start)--(init);\draw[->] (init)--(cal);\draw[->] (cal)--(cmd);\draw[->] (cmd)--(ready);
+\draw[->] (ready)--node[right]{Có}(read);\draw[->] (read)--(alg);\draw[->] (alg)--(div);
+\draw[->] (div)--node[right]{Có}(output);
+\draw[->] (ready.west) -- ++(-20mm,0) node[above,pos=.6]{Không} |- (cmd.west);
+\draw (div.east) -- ([xshift=24mm]output.east |- div.east) node[above,pos=.5]{Không};
+\draw[->] (output.east) -- ++(24mm,0) |- (cmd.east);
+\end{tikzpicture}

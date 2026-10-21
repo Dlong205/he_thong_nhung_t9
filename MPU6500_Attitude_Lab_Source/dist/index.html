@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#071113" />
+  <meta name="description" content="MPU6500 Attitude Lab — kết nối STM32F103 qua Web Serial để trực quan hóa Roll/Pitch bằng mô hình 3D." />
+  <title>MPU6500 Attitude Lab</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css?v=web-20261021-2" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div>
+        <p class="eyebrow">STM32F103 · MPU6500 · I2C</p>
+        <h1>Attitude Lab</h1>
+      </div>
+    </div>
+    <div class="top-status">
+      <span id="secure-pill" class="pill neutral">Đang kiểm tra trình duyệt</span>
+      <span id="connection-pill" class="pill offline"><i></i> Chưa kết nối</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <div>
+        <p class="eyebrow accent">BÁM THEO CẢM BIẾN THẬT</p>
+        <h2>Nghiêng mạch. Máy bay nghiêng theo.</h2>
+        <p>STM32 đọc MPU6500 ở 500 Hz, chạy bộ lọc rồi gửi dữ liệu qua USB–UART. Website nhận gói binary có CRC, hiển thị mô hình 3D, vẽ đồ thị và ghi dữ liệu để đánh giá kết quả.</p>
+      </div>
+      <div class="pipeline" aria-label="Luồng dữ liệu">
+        <span>MPU6500</span><b>→</b><span>STM32</span><b>→</b><span>UART</span><b>→</b><span>WEB 3D</span>
+      </div>
+    </section>
+
+    <section class="hero-grid">
+      <article class="panel visual-panel">
+        <div class="panel-head">
+          <div>
+            <p class="label">ATTITUDE VIEW</p>
+            <h3>Mô hình 3D thời gian thực</h3>
+          </div>
+          <select id="orientation-source" aria-label="Nguồn góc điều khiển mô hình">
+            <option value="kalman">Kalman</option>
+            <option value="cf">Complementary</option>
+            <option value="acc">Accelerometer</option>
+            <option value="gyro">Gyroscope</option><option value="fixed">Kalman Q16.16 một phần</option>
+          </select>
+        </div>
+
+        <div class="stage" id="stage">
+          <div class="horizon horizon-a"></div>
+          <div class="horizon horizon-b"></div>
+          <div class="axis axis-x">X / ROLL</div>
+          <div class="axis axis-y">Y / PITCH</div>
+          <div class="aircraft-wrap" id="aircraft-wrap">
+            <div class="aircraft" id="aircraft" role="img" aria-label="Máy bay 3D xoay theo dữ liệu cảm biến"></div>
+          </div>
+          <div class="model-caption"><span class="model-dot"></span> AERO / 6500 <small>O–X–Y–Z cố định · chấm đỏ MPU là mốc giữa mô hình</small></div>
+          <div class="camera-tools" role="group" aria-label="Góc nhìn máy bay">
+            <button type="button" data-camera="perspective" class="active" aria-pressed="true">Phối cảnh</button>
+            <button type="button" data-camera="front" aria-pressed="false">Chính diện</button>
+            <button type="button" data-camera="top" aria-pressed="false">Từ trên</button>
+          </div>
+          <span class="camera-hint">Kéo để xoay góc nhìn</span>
+          <div class="stage-vignette"></div>
+          <div class="hud hud-left">
+            <span>ROLL</span><strong id="hud-roll">0.00°</strong>
+            <span>PITCH</span><strong id="hud-pitch">0.00°</strong>
+          </div>
+          <div class="hud hud-right">
+            <span>YAW</span><strong id="hud-yaw">REL 0.00°</strong>
+            <span>FRAME</span><strong id="frame-rate">60 FPS</strong>
+          </div>
+          <div class="zero-line"><span></span></div>
+        </div>
+
+        <div class="axis-tools">
+          <label><input type="checkbox" id="swap-axes" /> Đổi Roll ↔ Pitch</label>
+          <label><input type="checkbox" id="invert-roll" /> Đảo Roll</label>
+          <label><input type="checkbox" id="invert-pitch" /> Đảo Pitch</label>
+          <button id="zero-button" class="text-button">Đặt góc hiện tại = 0°</button>
+        </div>
+      </article>
+
+      <aside class="panel connect-panel">
+        <div class="panel-head">
+          <div>
+            <p class="label">HARDWARE LINK</p>
+            <h3>Kết nối STM32</h3>
+          </div>
+          <span class="pulse-dot" id="rx-dot" title="Nháy khi nhận gói"></span>
+        </div>
+
+        <div id="mode-card" class="mode-card demo">
+          <div class="mode-icon" aria-hidden="true">⌁</div>
+          <div>
+            <small>CHẾ ĐỘ HIỆN TẠI</small>
+            <strong id="mode-name">Mô phỏng</strong>
+            <p id="mode-description">Đang phát dữ liệu giả để thử toàn bộ giao diện.</p>
+          </div>
+        </div>
+
+        <label class="field-label" for="baud-rate">Baud rate</label>
+        <select id="baud-rate" class="full-select">
+          <option value="115200" selected>115200 — đúng firmware K03</option>
+          <option value="230400">230400 — firmware tùy chỉnh</option>
+          <option value="460800">460800</option>
+          <option value="921600">921600</option>
+        </select>
+
+        <label class="field-label" for="protocol-mode">Định dạng firmware</label><select id="protocol-mode" class="full-select"><option value="binary">K03 binary · 85 byte · CRC8</option><option value="text">Bản cũ · RAW / ATT văn bản</option></select>
+        <div class="button-stack">
+          <button id="connect-button" class="primary-button">
+            <span class="usb-icon">⌁</span> Chọn cổng COM và kết nối
+          </button>
+          <button id="disconnect-button" class="secondary-button" disabled>Ngắt kết nối</button>
+          <button id="demo-button" class="secondary-button">Tạm dừng mô phỏng</button>
+        </div>
+
+        <div class="stats-grid">
+          <div><span>Tốc độ nhận</span><strong id="packet-rate">50 Hz</strong></div>
+          <div><span>Gói hợp lệ</span><strong id="packet-count">0</strong></div>
+          <div><span>Gói lỗi</span><strong id="error-count">0</strong></div>
+          <div><span>Khoảng nhận gói</span><strong id="latency-value">—</strong></div>
+        </div>
+
+        <div class="privacy-note">
+          <span aria-hidden="true">◈</span>
+          <p>Dữ liệu đi thẳng từ cổng COM vào trình duyệt và không được tải lên máy chủ.</p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="metrics-grid" aria-label="Các giá trị góc">
+      <article class="metric-card acc"><span>ACC ANGLE</span><strong id="metric-acc">0.00°</strong><small>nhanh nhưng nhiễu</small></article>
+      <article class="metric-card gyro"><span>GYRO INTEGRAL</span><strong id="metric-gyro">0.00°</strong><small>mượt nhưng bị trôi</small></article>
+      <article class="metric-card cf"><span>COMPLEMENTARY</span><strong id="metric-cf">0.00°</strong><small>α = <b id="alpha-value">0.98</b></small></article>
+      <article class="metric-card kalman"><span>KALMAN</span><strong id="metric-kalman">0.00°</strong><small>angle + gyro bias</small></article>
+    </section>
+
+    <section class="analysis-grid">
+      <article class="panel chart-panel">
+        <div class="panel-head chart-head">
+          <div>
+            <p class="label">FILTER COMPARISON</p>
+            <h3 id="chart-title">So sánh Roll theo thời gian</h3><label class="helper">Trục đồ thị <select id="chart-axis"><option value="roll">Roll</option><option value="pitch">Pitch</option><option value="yaw">Yaw</option></select></label>
+          </div>
+          <div class="legend" aria-label="Bật hoặc tắt từng đường trên đồ thị">
+            <label class="leg-acc" id="legend-acc"><input type="checkbox" data-chart-series="acc" checked><span>Acc</span></label>
+            <label class="leg-gyro" id="legend-gyro"><input type="checkbox" data-chart-series="gyro" checked><span>Gyro</span></label>
+            <label class="leg-cf" id="legend-cf"><input type="checkbox" data-chart-series="cf" checked><span>CF</span></label>
+            <label class="leg-kalman" id="legend-kalman"><input type="checkbox" data-chart-series="kalman" checked><span>Kalman</span></label>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="filter-chart" aria-label="Đồ thị góc Roll, Pitch hoặc Yaw theo thời gian"></canvas></div>
+        <div class="chart-footer">
+          <span id="chart-window">Cửa sổ 6 giây · thời gian STM32</span>
+          <button id="export-button" class="text-button">Xuất CSV</button>
+        </div>
+      </article>
+
+      <article class="panel sensor-panel">
+        <div class="panel-head">
+          <div><p class="label">LIVE SENSOR</p><h3>Dữ liệu MPU6500</h3></div>
+          <span id="sensor-state" class="tiny-badge">DEMO</span>
+        </div>
+        <div class="sensor-grid">
+          <div class="sensor-group">
+            <h4>ACCELEROMETER <span>g</span></h4>
+            <p><span>Ax</span><strong id="ax">0.000</strong></p>
+            <p><span>Ay</span><strong id="ay">0.000</strong></p>
+            <p><span>Az</span><strong id="az">1.000</strong></p>
+          </div>
+          <div class="sensor-group">
+            <h4>GYROSCOPE <span>°/s</span></h4>
+            <p><span>Gx</span><strong id="gx">0.000</strong></p>
+            <p><span>Gy</span><strong id="gy">0.000</strong></p>
+            <p><span>Gz</span><strong id="gz">0.000</strong></p>
+          </div>
+        </div>
+        <div class="register-strip">
+          <div><span>I2C</span><strong>0x68</strong></div>
+          <div><span>DẢI ACC / GYRO</span><strong>±2 g / ±250 °/s</strong></div>
+          <div><span>MẪU DANH ĐỊNH</span><strong>500 Hz</strong></div>
+          <div><span>UART</span><strong id="uart-rate">115200</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel firmware-panel">
+      <div class="panel-head"><div><p class="label">FIRMWARE K03 · LIVE DIAGNOSTICS</p><h3>Thời gian xử lý & chất lượng dữ liệu</h3></div><span id="data-health" class="tiny-badge">DEMO</span></div>
+      <div class="telemetry-grid">
+        <div><span>Xử lý đọc MPU + bộ lọc</span><strong id="exec-time">—</strong><small id="exec-range">Trung bình / min / max phiên</small></div>
+        <div><span>Chu kỳ xử lý dt_us</span><strong id="sample-dt">—</strong><small id="dt-range">Quan sát qua log 50 Hz</small></div>
+        <div><span>Khung CRC lỗi</span><strong id="crc-errors">0</strong><small id="decoder-errors">Độ dài / số không hợp lệ: 0</small></div>
+        <div><span>Chênh Kalman float − fixed</span><strong id="fixed-delta">—</strong><small id="fixed-max">Roll / Pitch; cùng mẫu</small></div>
+      </div>
+      <p class="helper">exec_us được firmware đo trước khi xử lý từ kế, truyền telemetry và cập nhật OLED; không phải tải CPU toàn hệ thống. Mỗi 10 mẫu mới gửi một gói: thống kê này chỉ mô tả các mẫu được truyền. Khoảng trống timestamp không xác định chính xác số gói mất vì firmware chưa có sequence number.</p>
+      <div class="session-bar"><span id="session-info">Chưa có dữ liệu</span><button id="clear-session" class="text-button">Bắt đầu phiên dữ liệu mới</button><button id="download-session" class="text-button">Tải toàn bộ CSV</button></div>
+    </section>
+    <section class="lab-grid">
+      <article class="panel control-panel">
+        <div class="panel-head"><div><p class="label">SERVO BENCH · STM32 PA1 / TIM2_CH2</p><h3>Điều khiển servo trực tiếp bằng STM32</h3></div><span id="seq-state" class="tiny-badge">Chưa xác nhận</span></div>
+        <p class="helper">Web dùng chính cổng COM STM32 ở khung phía trên. Lệnh REF được STM32 đổi thành PWM 50 Hz trên PA1; không cần ESP32 hoặc cổng USB thứ hai.</p>
+        <label class="field-label" for="servo-angle">Góc ra lệnh (−90° đến +90°)</label>
+        <div class="input-row"><input id="servo-angle" type="number" min="-90" max="90" step="1" value="0"><button id="send-ref" class="primary-button" data-hardware>Gửi góc REF</button></div>
+        <p class="helper">Góc lệnh nhận lại trong telemetry: <b id="servo-feedback">—</b>. Quy ước: −90° là một đầu, 0° là giữa, +90° là đầu còn lại.</p>
+        <div class="command-grid"><button data-command="SEQ STATIC" data-hardware>STATIC · 7 nấc × 10 s</button><button data-command="SEQ STEP" data-hardware>STEP · 0 / 30 / 60 / 0°</button><button data-command="SEQ DRIFT" data-hardware>DRIFT · 0° trong 330 s</button><button data-command="SEQ STOP" data-hardware class="stop-button">Dừng chuỗi · giữ góc</button></div>
+        <p id="command-status" class="helper" role="status">Kết nối STM32 ở chế độ K03 binary để gửi góc và chạy các chuỗi đo.</p>
+      </article>
+      <article class="panel control-panel">
+        <div class="panel-head"><div><p class="label">OLED & MAGNETOMETER</p><h3>Hiển thị và hướng Yaw</h3></div><span id="peripheral-state" class="tiny-badge">Chưa biết trạng thái</span></div>
+        <div class="oled-preview" aria-label="Bố cục bốn ô dựng từ telemetry, không phải ảnh đọc ngược từ OLED"><div class="oled-cell"><span>ROLL</span><strong id="oled-roll">—</strong></div><div class="oled-cell"><span>PITCH</span><strong id="oled-pitch">—</strong></div><div class="oled-cell"><span>YAW</span><strong id="oled-yaw">—</strong></div><div class="oled-cell"><span>REF</span><strong id="oled-ref">—</strong></div></div>
+        <p class="helper">Bản xem trước khớp bố cục OLED 4 ô của firmware. Giá trị được dựng từ telemetry, không phải dữ liệu đọc ngược từ màn hình; Yaw = 0 chưa chứng minh từ kế đang hoạt động.</p>
+        <label class="field-label" for="yaw-source">Yaw điều khiển mô hình</label><select id="yaw-source" class="full-select"><option value="tilt">Yaw bù nghiêng</option><option value="raw">Yaw thô</option><option value="off">Tắt Yaw · chỉ Roll/Pitch</option></select>
+        <label class="field-label" for="yaw-filter">Làm mượt Yaw trên web</label><select id="yaw-filter" class="full-select"><option value="off">Tắt lọc · phản hồi nhanh nhất</option><option value="fast">Nhanh · 0,2 s</option><option value="balanced" selected>Cân bằng · 0,6 s</option><option value="smooth">Mượt · 1,2 s</option></select>
+        <p class="helper">Lọc vòng theo góc ±180° để không nhảy khi qua mốc; mức mượt cao sẽ phản hồi chậm hơn. Góc thô từ STM32 vẫn được giữ nguyên trong CSV.</p>
+        <div class="yaw-panel" aria-label="Trạng thái yaw từ QMC5883P">
+          <div class="yaw-compass" aria-hidden="true"><span class="north">0°</span><span class="east">+90°</span><span class="south">180°</span><span class="west">−90°</span><i id="yaw-needle"></i><b>O</b></div>
+          <div class="yaw-readings">
+            <p><span>Yaw bù nghiêng</span><strong id="yaw-tilt-value">—</strong></p>
+            <p><span>Yaw thô</span><strong id="yaw-raw-value">—</strong></p>
+            <p><span>Yaw sau lọc web</span><strong id="yaw-filtered-value">—</strong></p>
+            <p><span>Yaw tương đối</span><strong id="yaw-relative-value">—</strong></p>
+            <p><span>Từ kế</span><strong id="yaw-health">Chờ dữ liệu</strong></p>
+            <p><span>Hiệu chuẩn</span><strong id="yaw-calibration">Chưa xác nhận</strong></p>
+          </div>
+        </div>
+        <div class="yaw-actions"><label><input type="checkbox" id="invert-yaw"> Đảo chiều Yaw</label><button type="button" id="zero-yaw" class="secondary-button">Đặt Yaw hiện tại = 0°</button></div>
+        <div class="command-grid"><button data-command="OLED" data-hardware>Đọc trạng thái OLED / MAG</button><button data-command="MAGCAL" data-hardware>MAGCAL · xoay ngang 15 s</button><button data-command="BIN 0" data-hardware>Tạm dừng stream</button><button data-command="BIN 1" data-hardware>Bật stream</button></div>
+        <p class="helper">Yaw lấy từ QMC5883P, dùng để nhìn hướng quay tương đối. Bấm MAGCAL rồi xoay mạch quanh trục đứng trong 15 giây; kết quả hiệu chuẩn mất khi STM32 khởi động lại. Chưa dùng số này làm hướng Bắc hoặc chuẩn góc tuyệt đối.</p>
+      </article>
+    </section>
+    <section class="panel measurement-panel">
+      <div class="panel-head"><div><p class="label">STATIC EVALUATION</p><h3>Đo sai số với góc chuẩn độc lập</h3></div><span id="measurement-status" class="tiny-badge">Chưa đo</span></div>
+      <p class="helper">Đặt bàn đứng yên, đọc thước hoặc encoder rồi nhập góc thật. Web thu 5 giây dữ liệu thật và tính trên góc gốc từ firmware, không dùng góc đã đảo trục/đặt zero để hiển thị. Không tự lấy góc lệnh servo làm chuẩn.</p>
+      <div class="measurement-inputs"><label>Trục <select id="measure-axis"><option value="roll">Roll</option><option value="pitch">Pitch</option></select></label><label>Góc đo thật (°) <input id="reference-angle" type="number" min="-180" max="180" step="0.1" placeholder="Ví dụ: 29.5"></label><button id="capture-static" class="primary-button">Thu 5 giây đứng yên</button><button id="export-measurements" class="secondary-button">Xuất bảng kết quả</button></div>
+      <div class="wiring-table-wrap"><table class="wiring-table"><thead><tr><th>Phương pháp</th><th>N</th><th>Bias °</th><th>MAE °</th><th>RMSE °</th><th>STD °</th></tr></thead><tbody id="measurement-results"><tr><td colspan="6">Chưa có phép đo. Nhập góc chuẩn rồi thu dữ liệu.</td></tr></tbody></table></div>
+      <p class="helper">STD là độ lệch chuẩn mẫu của sai số. Kết quả chưa bao gồm bất định của dụng cụ tham chiếu. Mỗi lần thu chỉ đánh giá một góc tĩnh; lặp ở nhiều nấc và cả hai chiều quay.</p>
+    </section>
+    <section class="panel console-panel"><div class="panel-head"><div><p class="label">STM32 CONSOLE</p><h3>Nhật ký firmware & lệnh đã gửi</h3></div><button id="clear-console" class="text-button">Xóa nhật ký</button></div><pre id="firmware-console" aria-label="Nhật ký firmware">Chờ kết nối. Dòng log # được tách riêng khỏi các gói binary.</pre></section>
+
+    <section class="setup-grid">
+      <article class="panel guide-panel">
+        <div class="panel-head"><div><p class="label">WIRING</p><h3>Đấu nối đúng trước khi bấm kết nối</h3></div><span class="step-badge">01</span></div>
+        <div class="bus-map" aria-label="Sơ đồ hai bus I2C và các chân điều khiển hiện tại">
+          <div><b>MPU6500</b><span>I2C2 · SCL PB10 / SDA PB11 · INT PA0</span></div>
+          <div><b>STM32F103</b><span>Blue Pill · xử lý góc 500 Hz</span></div>
+          <div><b>OLED + QMC5883P</b><span>I2C1 chung · SCL PB6 / SDA PB7</span></div>
+          <div><b>USB–UART</b><span>PA9 TX → RXD · PA10 RX ← TXD</span></div>
+          <div><b>Servo</b><span>PA1 / TIM2_CH2 · PWM 50 Hz · nguồn 5 V riêng</span></div>
+        </div>
+        <div class="wiring-notice"><b>INT → PA0 / EXTI0</b><span>Firmware phải cấu hình ngắt từ PA0 theo sơ đồ này.</span></div>
+        <div class="wiring-table-wrap">
+          <table class="wiring-table" id="mpu-wiring">
+            <caption>MPU6500 → STM32F103C8T6 Blue Pill</caption>
+            <thead><tr><th scope="col">Chân MPU6500</th><th scope="col">Blue Pill</th><th scope="col">Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">VCC</th><td>3.3V</td><td>Nguồn 3,3 V</td></tr>
+              <tr><th scope="row">GND</th><td>GND</td><td>Mass chung</td></tr>
+              <tr><th scope="row">SCL</th><td>PB10</td><td>I2C2 — đường xung nhịp</td></tr>
+              <tr><th scope="row">SDA</th><td>PB11</td><td>I2C2 — đường dữ liệu</td></tr>
+              <tr><th scope="row">AD0</th><td>GND</td><td>Chọn địa chỉ I2C 7 bit 0x68</td></tr>
+              <tr><th scope="row">NCS</th><td>3.3V</td><td>Kéo lên High để chọn I2C</td></tr>
+              <tr><th scope="row">FSYNC</th><td>GND</td><td>Nối GND theo sơ đồ này</td></tr>
+              <tr class="pin-highlight"><th scope="row">INT</th><td>PA0</td><td>Data Ready → EXTI0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="wiring-table-wrap"><table class="wiring-table" id="peripheral-wiring"><caption>Ngoại vi theo firmware hiện tại · I2C1 riêng với I2C2</caption><thead><tr><th>Thiết bị</th><th>Kết nối</th></tr></thead><tbody><tr><th>USB–UART STM32</th><td>PA9 (TX) → RXD; PA10 (RX) ← TXD; GND chung; logic 3,3 V</td></tr><tr><th>Servo SG90/MG90S</th><td>Tín hiệu → PA1 / TIM2_CH2; nguồn 5 V riêng; GND chung</td></tr><tr><th>OLED SSD1306/SH1106</th><td>I2C1: SCL → PB6; SDA → PB7; 3,3 V; GND; 0x3C/0x3D</td></tr><tr><th>QMC5883P</th><td>I2C1: SCL → PB6; SDA → PB7; 3,3 V; GND; 0x2C</td></tr></tbody></table></div>
+        <button type="button" id="copy-wiring" class="secondary-button wiring-copy">Sao chép sơ đồ chân</button>
+        <p id="wiring-copy-status" class="helper" role="status" aria-live="polite"></p>
+        <details class="wiring-detail" open>
+          <summary>USB–UART nối thế nào?</summary>
+          <p><b>PA9 (TX STM32) → RXD USB–UART</b><br>GND → GND chung. Chọn mức logic UART 3,3 V và cấp nguồn cho STM32.</p>
+          <p>TXD USB–UART → PA10 để gửi lệnh OLED, MAGCAL, BIN, REF và SEQ. STM32 phát PWM servo trực tiếp trên PA1.</p>
+          <p>Nếu STM32 đã có nguồn, không cần nối thêm chân VCC của USB–UART. Chân VCC 3,3 V và mức logic TX/RX là hai thông số cần kiểm tra riêng.</p>
+        </details>
+        <details class="wiring-detail">
+          <summary>Thêm OLED chung bus I2C</summary>
+          <p>Với module OLED hỗ trợ nguồn và logic 3,3 V: VCC → 3.3V, GND → GND, SCL → PB6, SDA → PB7. Kiểm tra địa chỉ OLED trong driver và điện trở kéo lên SDA/SCL về 3,3 V.</p>
+          <p>OLED và QMC5883P dùng chung I2C1 PB6/PB7. MPU6500 dùng riêng I2C2 PB10/PB11. Servo nhận tín hiệu PA1/TIM2_CH2, dùng nguồn 5 V đủ dòng và phải nối GND chung với STM32.</p>
+        </details>
+      </article>
+
+      <article class="panel protocol-panel">
+        <div class="panel-head"><div><p class="label">SERIAL PROTOCOL</p><h3>Gói dữ liệu website đang chờ</h3></div><span class="step-badge">02</span></div>
+        <pre id="packet-example"><code>AA 55 | LEN=81 | ts_ms | 14×float32 | exec_us | dt_us
+| roll_fix | pitch_fix | ref:i8 | yaw_raw | yaw_tilt | CRC8</code></pre>
+        <p class="helper">85 byte, little-endian. CRC-8 đa thức 0x07, giá trị đầu 0, tính trên LEN và payload (byte 2–83). Web chỉ cập nhật góc khi khung hợp lệ.</p>
+        <div class="protocol-fields"><span>115200 · 8N1</span><span>50 gói/s danh định</span><span>UART hai chiều</span></div>
+        <details class="wiring-detail"><summary>Các trường đang nhận từ firmware</summary><p>ax, ay, az (g); gx, gy, gz (°/s); Roll/Pitch của Acc, Gyro, CF, Kalman; exec_us, dt_us; Roll/Pitch fixed; góc lệnh servo; Yaw thô và bù nghiêng. Gói hiện không có dữ liệu từ trường mx/my/mz, bias Kalman hoặc số thứ tự gói.</p></details>
+        <details class="wiring-detail"><summary>Thông số thuật toán trong mã đã gửi</summary><p>α = 0,98; Q_angle = 0,001; Q_bias = 0,003; R = 0,03. Firmware dùng dt cố định 0,002 s cho bộ lọc; dt_us là thời gian đo riêng. Web không thay đổi tham số bộ lọc trên STM32.</p><p>Bản fixed lượng tử hóa trạng thái angle/bias theo Q16.16, vẫn tính bằng float và giữ P/Q/R float. Không gọi là Kalman hoàn toàn số nguyên.</p></details>
+        <details class="wiring-detail"><summary>Tương thích bản firmware cũ</summary><p>Chọn “RAW / ATT văn bản” và baud đúng bản cũ. Với RAW, góc được tính xem trước trên PC; với binary hoặc ATT, góc đến từ STM32.</p></details>
+      </article>
+    </section>
+
+    <section class="panel checklist-panel">
+      <div class="panel-head"><div><p class="label">CONNECTION CHECK</p><h3>Kiểm tra từng bước trên mạch</h3></div><span id="wiring-progress" class="tiny-badge" role="status">0 / 8</span></div>
+      <p class="helper">Tự đánh dấu sau khi đã kiểm tra. Trạng thái được lưu trên trình duyệt này; không phải kết quả tự đo từ phần cứng. Tắt nguồn trước khi thay dây.</p>
+      <div class="checklist" id="hardware-checklist">
+        <label><input type="checkbox" data-check="power" /> VCC = 3,3 V; các khối chung GND</label>
+        <label><input type="checkbox" data-check="i2c" /> MPU: SCL → PB10; SDA → PB11</label>
+        <label><input type="checkbox" data-check="mode" /> AD0, FSYNC → GND; NCS → 3,3 V</label>
+        <label><input type="checkbox" data-check="irq" /> INT → PA0; firmware dùng EXTI0 từ PA0</label>
+        <label><input type="checkbox" data-check="id" /> WHO_AM_I = 0x70; dữ liệu sáu trục thay đổi</label>
+        <label><input type="checkbox" data-check="uart" /> PA9 → RXD; baud firmware và web giống nhau</label>
+        <label><input type="checkbox" data-check="packets" /> Tắt demo, kết nối COM và có gói hợp lệ</label>
+        <label><input type="checkbox" data-check="axes" /> Nghiêng từng trục; mô hình đổi đúng chiều</label>
+      </div>
+      <button type="button" id="reset-wiring-checks" class="text-button">Bỏ đánh dấu để kiểm tra lại</button>
+    </section>
+    <section class="panel troubleshooting-panel">
+      <div class="panel-head"><div><p class="label">TROUBLESHOOTING</p><h3>Có COM nhưng máy bay không nhận dữ liệu?</h3></div></div>
+      <details class="wiring-detail"><summary>Đã nối dây nhưng vẫn thấy máy bay tự chuyển động</summary><p>Kiểm tra thẻ “CHẾ ĐỘ HIỆN TẠI”. Mô phỏng là dữ liệu giả để xem giao diện. Khi kết nối phần cứng thành công, hãy nhìn số gói hợp lệ và tốc độ nhận để biết web có đang nhận mẫu thật.</p></details>
+      <details class="wiring-detail"><summary>Không mở được cổng COM</summary><p>Đóng Serial Monitor, terminal hoặc Python đang giữ cùng cổng. Kiểm tra cáp USB, driver USB–UART và chọn đúng thiết bị trong hộp chọn cổng của trình duyệt.</p></details>
+      <details class="wiring-detail"><summary>Cổng đã kết nối nhưng gói hợp lệ vẫn bằng 0</summary><p>Kiểm tra STM32 có nguồn, PA9 nối RXD, GND chung và baud khớp firmware. Với bộ code K03 đã gửi, chọn 115200 baud và “K03 binary”. Nếu stream đang tắt, bấm “Bật stream”. Bản cũ RAW/ATT cần chọn chế độ văn bản tương ứng.</p></details>
+      <details class="wiring-detail"><summary>Có dữ liệu UART nhưng sáu trục đứng yên hoặc lỗi</summary><p>Kiểm tra riêng cảm biến: SDA/SCL, AD0, NCS và WHO_AM_I. Nếu firmware chờ Data Ready, kiểm tra dây INT → PA0 và cấu hình EXTI0 từ PA0. Sửa sơ đồ trên web không tự thay đổi chương trình đã nạp vào STM32.</p></details>
+      <details class="wiring-detail"><summary>Máy bay nghiêng ngược hoặc sai trục</summary><p>Nghiêng riêng từng trục để kiểm tra, sau đó dùng “Đổi Roll ↔ Pitch”, “Đảo Roll” hoặc “Đảo Pitch” dưới mô hình. Kéo chuột chỉ thay đổi góc nhìn camera. Đặt mạch yên ở tư thế chuẩn rồi bấm “Đặt góc hiện tại = 0°” khi cần đặt mốc hiển thị.</p></details>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <footer>
+    <p>MPU6500 Attitude Lab · Roll/Pitch là góc chính. Yaw bù nghiêng từ QMC5883P cần hiệu chuẩn và kiểm chứng trước khi dùng định lượng.</p>
+  </footer>
+
+  <script src="./aircraft.js?v=mpu-dot-1" defer></script>
+  <script src="./protocol.js" defer></script>
+  <script src="./app.js?v=web-20261021-2" defer></script>
+  <script src="./wiring.js?v=bus-2" defer></script>
+</body>
+</html>

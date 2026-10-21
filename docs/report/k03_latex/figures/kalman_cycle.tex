@@ -1,0 +1,10 @@
+\begin{tikzpicture}[node distance=8mm,>=Latex,font=\fontsize{12}{15}\selectfont,
+ block/.style={draw,rectangle,align=center,text width=88mm,minimum height=14mm,inner sep=2mm}]
+\node[block] (input) {Nhận $\omega_k$, $\phi_{\mathrm{acc},k}$ và $\Delta t$\\Trạng thái trước: góc, bias và ma trận $P$};
+\node[block,below=of input] (predict) {Dự đoán góc và hiệp phương sai\\$\hat x^-_k=F\hat x_{k-1}+B\omega_k$; $P^-_k=FP_{k-1}F^T+Q$};
+\node[block,below=of predict] (residual) {Tính phần dư và hệ số Kalman\\$y_k=z_k-H\hat x^-_k$; $K_k=P^-_kH^T/(HP^-_kH^T+R)$};
+\node[block,below=of residual] (update) {Hiệu chỉnh góc, bias và hiệp phương sai\\$\hat x_k=\hat x^-_k+K_ky_k$; $P_k=(I-K_kH)P^-_k$};
+\node[block,below=of update] (out) {Xuất góc ước lượng và lưu trạng thái\\Tiếp tục khi có mẫu cảm biến mới};
+\draw[->] (input)--(predict);\draw[->] (predict)--(residual);\draw[->] (residual)--(update);\draw[->] (update)--(out);
+\draw[->] (out.east) -- ++(15mm,0) |- (input.east);
+\end{tikzpicture}

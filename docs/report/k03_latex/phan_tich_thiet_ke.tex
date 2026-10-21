@@ -1,0 +1,72 @@
+\section{Thiết kế phần cứng ở mức tín hiệu và nguồn}
+\subsection{Phân chia nguồn và đường mass}
+Blue Pill, MPU6500, OLED và QMC5883P hoạt động ở mức logic 3,3~V trên bus I2C. Servo SG90 được cấp 5~V, nhận PWM 50~Hz từ ESP32-S3 GPIO21 và dùng chung mass với mạch đo. PA1/TIM2\_CH2 vẫn có trong firmware như phương án điều khiển servo tùy chọn. Dòng servo thay đổi mạnh khi bắt đầu quay hoặc bị cản cơ khí. Nếu cấp nguồn qua một đường dây mảnh hoặc nguồn USB yếu, sụt áp có thể làm vi điều khiển reset, làm bus I2C lỗi hoặc thay đổi nhiễu cảm biến. Trong ảnh chụp hệ thống thực tế cần thấy đường nguồn servo, mass chung và vị trí gá cảm biến.
+
+Đường SDA/SCL cần điện trở kéo lên thích hợp với bus 3,3~V, tổng điện dung dây và số module đấu chung. Ở 400~kHz, dây dài trên breadboard dễ làm sườn tín hiệu chậm. Vì MPU6500, OLED và từ kế cùng dùng I2C1, một module giữ SDA thấp có thể làm toàn bộ phép đọc bị treo. Driver \,\texttt{i2c\_reg.c}\, có chức năng phục hồi bus trước khi khởi tạo; bộ kiểm thử vẫn cần ghi số lần timeout, tình huống nguồn và cách cắm dây. Sơ đồ nối chân thể hiện kết nối logic, còn chất lượng cạnh xung nên được kiểm bằng oscilloscope hoặc logic analyzer nếu có điều kiện.
+
+Chân AD0 của MPU6500 xác định địa chỉ I2C. Tài liệu thiết kế chọn 0x68 khi AD0 nối GND; mã hiện thử cả 0x68 và 0x69 để hỗ trợ tình huống AD0 bị kéo lên. Việc dò địa chỉ giúp khởi động ổn định hơn nhưng không thay thế kiểm tra dây. Sau khi tìm thiết bị, firmware đọc WHO\_AM\_I và chỉ chấp nhận 0x70, qua đó tránh nhầm cảm biến cùng họ có thanh ghi và đặc tính khác. Trình tự kiểm tra gồm: bus phản hồi, thanh ghi định danh đúng, ghi cấu hình thành công, đọc dữ liệu sáu trục hợp lý rồi mới chạy thuật toán.
+
+\subsection{Tín hiệu ngắt Data Ready và bộ đếm chu kỳ}
+MPU6500 phát tín hiệu Data Ready khi có mẫu mới; PA0 được cấu hình làm EXTI0 bắt cạnh lên. Trong ISR chỉ đặt cờ thông báo. Chuỗi đọc 14 byte và xử lý số học nằm ở vòng lặp chính, giúp ngắt ngắn và tránh truyền UART trong ISR. DWT CYCCNT đếm chu kỳ CPU tại 72~MHz. Thời gian tính theo micro giây là $t_{\mu s}=C/(72)$ với $C$ là hiệu số chu kỳ, nếu clock đúng 72~MHz. Khi thay cấu hình clock hoặc gặp tràn bộ đếm, phép đo phải dùng hiệu số không dấu và cập nhật mẫu số theo \,\texttt{SystemCoreClock}.
+
+Các mốc thời gian nên được đo riêng: thời điểm nhận ngắt; thời điểm bắt đầu đọc I2C; thời điểm có mẫu đủ sáu trục; thời điểm hoàn thành bốn góc; thời điểm đóng gói và gửi telemetry. Phép đo tích hợp ngày 20/10/2026 ghi \texttt{exec\_us} trung bình $677{,}72~\mu\mathrm{s}$ và \texttt{dt\_us} trung bình $1\,997{,}58~\mu\mathrm{s}$. Trường thời gian xử lý kết thúc trước phần từ kế, telemetry và OLED, nên báo cáo dùng thêm phân bố chu kỳ mẫu để kiểm tra khả năng duy trì 500~Hz khi các tác vụ nền cùng hoạt động.
+
+\section{Chuỗi khởi tạo và vận hành firmware}
+\subsection{Khởi động hệ thống}
+Chuỗi khởi tạo hợp lý bắt đầu từ clock và chân GPIO, sau đó USART để xuất thông tin chẩn đoán, bus I2C, kiểm tra cảm biến, cấu hình ngắt, hiệu chuẩn gyro và khởi tạo bộ lọc. Servo nên ở góc biết trước và đứng yên trước giai đoạn tính gyro bias. OLED và từ kế có thể được kiểm tra hiện diện sau khi MPU6500 đã đáp ứng, nhằm tách lỗi trên từng module. Nếu bước định danh MPU thất bại, chương trình cần báo trạng thái lỗi rõ trên UART hoặc LED thay vì tiếp tục xuất góc không hợp lệ.
+
+Mã nguồn trong thư mục \,\texttt{Core/Src}\, đã có điểm vào tích hợp: đọc MPU6500 theo Data Ready, chạy bốn phương pháp, cập nhật Kalman fixed, đọc từ kế tùy trạng thái, gửi packet nhị phân và làm mới OLED theo từng page. Phép đo ngày 20/10/2026 được dùng để đối chiếu nhịp 500~Hz và độ nhất quán float--fixed của bản này.
+
+\subsection{Lịch công việc theo nhịp 500 Hz và 50 Hz}
+Một mẫu mới của MPU6500 xuất hiện theo chu kỳ danh định 2~ms. Những tác vụ bắt buộc cho mỗi mẫu gồm đọc sáu trục, đổi đơn vị, hiệu chuẩn và cập nhật bốn phương pháp góc. Telemetry 50~Hz được gửi sau mười mẫu, tương ứng 20~ms. OLED cập nhật theo lịch giảm tần suất vì một lần ghi màn hình có thể chiếm bus I2C lâu hơn một lần đọc cảm biến. Từ kế cũng không cần đọc đủ 500~Hz khi chỉ dùng để minh họa Yaw. Việc chia nhịp phải được kiểm tra bằng log dấu thời gian: không được chỉ dựa vào biến đếm trong mã.
+
+Khi một tác vụ OLED hoặc UART kéo dài, thời gian hoàn tất của vòng lặp có thể tăng nhưng thời điểm lấy mẫu vẫn do cảm biến quy định. Nếu vòng lặp không kịp xử lý Data Ready tiếp theo, cần đếm số lần bỏ mẫu và ghi rõ điều kiện. Cách đánh giá tối thiểu là chạy tĩnh 30~s và trong lúc servo STEP, so sánh trung bình, độ lệch chuẩn, bách phân vị 99 và cực đại của \,\texttt{dt\_us}\, cùng \,\texttt{exec\_us}. Bách phân vị 99 có ích vì một giá trị cực đại đơn lẻ có thể là ngoại lệ, còn trung bình có thể che các lần trễ lặp lại.
+
+\subsection{Máy trạng thái servo và góc lệnh}
+Module \,\texttt{servo\_ref.c}\, cấu hình TIM2 với prescaler 71 và ARR 19999, tạo bước đếm 1~$\mu$s và chu kỳ PWM 20~ms. Độ rộng xung dùng khoảng 1000--2000~$\mu$s cho góc lệnh từ $-90\degree$ đến $+90\degree$. Quan hệ tuyến tính được giả sử trong lệnh là
+\begin{equation}
+t_{\rm PWM}(r)=1500+\frac{500}{90}r\quad(\mu\mathrm{s}),\qquad -90\degree\leq r\leq90\degree.
+\end{equation}
+Phép tính này tạo lệnh, chưa kiểm tra góc trục. Cần đo góc thật tại các nấc và xây bảng hiệu chuẩn nếu muốn dùng servo làm chuẩn đối chứng.
+
+Ba kịch bản được định nghĩa trong mã:
+\begin{itemize}
+\item STATIC giữ lần lượt $-60$, $-45$, $-30$, $0$, $30$, $45$, $60\degree$ trong 10~s mỗi nấc;
+\item STEP giữ các mốc $0$, $30$, $60$, $0\degree$ trong 5~s mỗi nấc;
+\item DRIFT giữ $0\degree$ trong 330~s.
+\end{itemize}
+Lệnh \,\texttt{REF}\, chuyển sang góc thủ công; \,\texttt{SEQ STOP}\, dừng kịch bản. Hàm cập nhật máy trạng thái dựa trên thời gian \,\texttt{board\_millis()}\, nên không chặn vòng lặp bằng delay. Khi kiểm tra, nên ghi cả thời điểm phát lệnh, thời điểm ref trong gói dữ liệu thay đổi và thời điểm góc thật bắt đầu thay đổi; ba thời điểm này không giống nhau.
+
+\section{Thiết kế gói dữ liệu và kiểm soát lỗi truyền}
+\subsection{Cấu trúc và khả năng giải mã}
+Gói nhị phân bắt đầu bằng hai byte đồng bộ AA 55, sau đó là LEN, dấu thời gian, 14 giá trị số thực 32 bit, thời gian thực thi, chu kỳ mẫu, hai góc Kalman fixed, ref servo, hai góc Yaw và CRC-8. Các số nhiều byte được ghi theo thứ tự little-endian. Trường LEN cho phép chương trình PC biết giới hạn payload, còn CRC trên LEN cộng payload giúp phát hiện gói bị đổi byte. Trên đường UART, khi rơi một byte, bộ giải mã phải tìm lại AA 55 và kiểm LEN/CRC trước khi chấp nhận gói kế tiếp. Đây là cơ chế đồng bộ luồng, không phải cơ chế đảm bảo một gói không bao giờ bị mất.
+
+Chiều dài hiện tại là 85 byte. Ở 50 gói/s, lưu lượng payload là $4250$~byte/s. Với UART 8N1, mỗi byte tiêu thụ 10 bit trên dây, nên tải đường truyền khoảng $42{,}5$~kbit/s, nằm dưới các mức baud 115\,200, 230\,400 hoặc 460\,800 được dùng ở những giai đoạn khác nhau. Tuy nhiên, baud thực tế phải khớp giữa firmware và logger. Các ghi chú cũ mô tả nhiều cấu hình baud; khi tạo bảng kết quả mới cần lấy cấu hình từ đúng mã đã nạp, không chép mặc định từ một nhật ký trước đó.
+
+Mỗi trường góc Roll/Pitch thuộc cùng một mẫu cảm biến và cùng dấu thời gian là điều kiện để so sánh công bằng. Nếu máy tính nhận dữ liệu trễ nhưng các giá trị trong gói vẫn cùng mốc, độ trễ truyền không làm lệch so sánh tương đối bốn phương pháp. Ngược lại, nếu dùng thời điểm nhận gói trên PC để đo độ trễ thuật toán theo servo, ta sẽ gộp thêm hàng đợi UART, USB và hệ điều hành. Phân tích STEP cần ưu tiên dấu thời gian nguồn của firmware và ghi giới hạn độ phân giải khi telemetry chỉ 50~Hz.
+
+\subsection{Kiểm tra chất lượng dữ liệu trước phân tích}
+Trước khi tính chỉ số, logger nên kiểm số gói nhận, số CRC lỗi, số lần tái đồng bộ, tính đơn điệu của \,\texttt{ts\_ms}\, và khoảng trống giữa các mẫu. Các hàng chứa giá trị không hữu hạn hoặc độ dài sai phải được loại có ghi số lượng. Nếu chương trình PC nội suy để vẽ, dữ liệu nội suy không được tính như mẫu đo độc lập trong MAE/RMSE. Bảng số liệu cần nêu số mẫu gốc và thời gian của cửa sổ đã giữ sau khi bỏ quá độ.
+
+Một file CSV cần có thông tin đi kèm: phiên bản mã hoặc commit, cổng và baud, ngày đo, điều kiện cấp nguồn, vị trí board, trạng thái hiệu chuẩn, cấu hình DLPF, tham số CF/Kalman, kịch bản servo và khoảng thời gian bỏ quá độ. Nếu thiếu thông tin này, rất khó biết vì sao hai lần đo cho kết quả khác nhau. Nhật ký hiện có từ tháng 9 cung cấp nhiều số liệu hữu ích, nhưng thuộc một cấu hình firmware khác; chúng được dùng trong chương kết quả như bằng chứng lịch sử có giới hạn rõ ràng.
+
+\section{Thiết kế phép đo góc tham chiếu bằng servo}
+\subsection{Hiệu chuẩn vị trí cơ khí}
+Trước khi đo, cần cố định thân servo vào giá đỡ và bắt module MPU6500 lên còi servo sao cho trục quay mong muốn là Roll. Một ảnh chụp trực diện cho biết quan hệ cơ khí, còn ảnh nhìn ngang giúp thấy độ nghiêng ban đầu và dây có cản chuyển động hay không. Cần kiểm tra dây không kéo board khi quay đến hai đầu dải. Nếu gá lỏng, servo thay đổi góc mà cảm biến rung hoặc lắc, làm tăng cả sai số tĩnh lẫn nhiễu động.
+
+Tại mỗi nấc của STATIC, lấy góc bằng thiết bị tham chiếu sau khi cơ cấu ổn định. Có thể đo cả khi đi từ âm sang dương và khi đi ngược lại để ước lượng độ rơ. Gọi $r_j$ là góc lệnh và $\theta_j^{\rm true}$ là góc đo độc lập, sai lệch cơ cấu là $\delta_j=\theta_j^{\rm true}-r_j$. Nên vẽ $\delta_j$ theo góc lệnh và ghi bất định của phép đọc. Nếu độ rơ theo chiều quay đáng kể, không gộp hai chiều thành một mốc duy nhất. Bảng hiệu chuẩn này sẽ quyết định có thể dùng servo để chấm ngưỡng dưới $1\degree$ hay chỉ minh họa đáp ứng động.
+
+\subsection{Cửa sổ phân tích cho STATIC}
+Mỗi nấc giữ 10~s. Sau khi đổi lệnh, bỏ ít nhất đoạn chuyển động và xác lập; thời gian bỏ nên chọn theo log và công bố trước khi tính chỉ số. Ví dụ quy trình có thể bỏ 2~s đầu mỗi nấc, lấy 8~s còn lại, nhưng cần xác nhận servo đã đứng yên trước khi áp dụng. Với telemetry 50~Hz, mỗi cửa sổ 8~s dự kiến có khoảng 400 hàng nếu không mất gói. Từng nấc nên báo $N$, góc chuẩn, trung bình góc của từng phương pháp, bias, MAE, RMSE, độ lệch chuẩn và giá trị cực đại. Sau đó có thể tính chỉ số toàn bộ các nấc bằng cách cộng trên mọi mẫu hợp lệ.
+
+Độ lệch chuẩn tại một nấc cho biết độ mịn; bias cho biết độ lệch trung bình; MAE/RMSE cho biết sai số theo chuẩn nếu chuẩn thực sự độc lập. Một bộ lọc có thể rất mượt nhưng bias lớn. Cũng cần tách kết quả Roll và Pitch: bàn servo chỉ tạo góc chuẩn Roll khi gá theo cấu hình đã mô tả. Pitch được ghi để xem ổn định và ghép trục, không được đưa vào MAE theo góc ref của servo.
+
+\subsection{Phép STEP và cách định nghĩa độ trễ}
+Trong chuỗi STEP, lệnh ref thay đổi bậc nhưng góc thật của servo thay đổi trong một khoảng thời gian hữu hạn. Vì thế, nên báo riêng ``trễ từ lệnh đến góc thật'' của cơ cấu và ``trễ từ góc thật đến góc ước lượng'' của thuật toán. Nếu chưa có góc thật theo thời gian, chỉ có thể tính trễ biểu kiến từ góc lệnh tới đường ước lượng. Định nghĩa 10--90\% của mỗi bước hoặc thời điểm đi qua 50\% biên độ giúp kết quả lặp lại được. Cần nêu cách xử lý nhiễu, thời điểm bắt đầu và kết thúc của từng bước và độ phân giải 20~ms của telemetry 50~Hz.
+
+Vọt lố có thể tính từ cực đại sau khi bước hoàn thành so với mức ổn định cuối, chia cho biên độ bước. Nếu servo tự vọt lố, thuật toán có thể bám đúng chuyển động nhưng vẫn hiện vọt lố so với lệnh. Do đó, thiếu góc thật khiến chỉ số vọt lố chỉ phản ánh hệ cơ khí cộng thuật toán. Khi trình bày kết quả, không nên ghi ``Kalman có độ trễ thấp hơn'' chỉ dựa vào quan sát bằng mắt ở một đồ thị.
+
+\section{Tổ chức phần mềm PC và khả năng tái tạo}
+Logger nhị phân, bộ đánh giá theo ref, công cụ quét tham số và giao diện đồ thị có vai trò khác nhau. Logger biến byte thành dữ liệu thời gian có kiểm CRC. Bộ đánh giá chọn cửa sổ hợp lệ và tính các chỉ số. Công cụ quét tham số chạy lại thuật toán trên cùng file để tránh khác biệt do kích thích. Giao diện realtime và mô hình 3D là phần trình diễn cho người quan sát, không thay phép đo định lượng. Việc dùng cùng tên cột, đơn vị và quy ước dấu ở mọi công cụ là cần thiết để đường trên PC khớp với màn OLED và báo cáo.
+
+Đối với một kết quả định lượng, nên có chuỗi tái tạo: file dữ liệu gốc, lệnh phân tích, phiên bản script, bảng kết quả và đồ thị. Nếu số liệu được cắt thủ công, cần ghi thời điểm bắt đầu và kết thúc. Với các file tháng 9, báo cáo dẫn tên CSV và nhật ký đo tương ứng; không pha trộn một bảng mới từ firmware tháng 10 vào hình cũ mà không đánh dấu nguồn. Cách quản lý này giúp người đọc kiểm tra được từng kết luận về trôi, rung và thời gian thực thi.

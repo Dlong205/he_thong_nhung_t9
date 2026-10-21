@@ -1,5 +1,5 @@
 #pragma once
-// Mở rộng K03 - Từ kế QMC5883P (Yaw). Dùng i2c_reg chung bus với MPU+OLED.
+// Mở rộng K03 - QMC5883P dùng chung I2C1 PB6/PB7 với OLED.
 // Địa chỉ TỰ DÒ trong {0x2C (chuẩn P), 0x0D (L/clone), 0x0C}: đọc CHIPID 0x00
 // phải = 0x80. Nhiều module clone địa chỉ khác nhau nên không chốt cứng 0x2C.
 // Map theo datasheet QST Rev.E + Adafruit lib:

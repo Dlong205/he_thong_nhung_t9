@@ -12,6 +12,8 @@
 
 static bool s_ok = false;
 static uint8_t s_addr = 0; // địa chỉ đã dò được
+volatile uint8_t qmc_probe_id[3];
+volatile uint8_t qmc_probe_read_ok[3];
 // Hard-iron offset (raw LSB), mặc định 0
 static float s_ox = 0, s_oy = 0, s_oz = 0;
 static int16_t s_minx = 32767, s_miny = 32767, s_minz = 32767;
@@ -21,9 +23,13 @@ static bool s_has_range = false;
 bool qmc_init(void) {
   // Tự dò địa chỉ: nhiều clone P/L để 0x2C/0x0D/0x0C. CHIPID phải = 0x80.
   static const uint8_t CAND[] = {0x2C, 0x0D, 0x0C};
+  s_addr = 0;
   for (uint8_t i = 0; i < sizeof(CAND); i++) {
     uint8_t id = 0;
-    if (i2c1_read_reg(CAND[i], R_ID, &id) && id == 0x80) { s_addr = CAND[i]; break; }
+    bool read_ok = i2c1_read_reg(CAND[i], R_ID, &id);
+    qmc_probe_id[i] = id;
+    qmc_probe_read_ok[i] = (uint8_t)read_ok;
+    if (read_ok && id == 0x80) { s_addr = CAND[i]; break; }
   }
   if (!s_addr) { s_ok = false; return false; }
   // Sequence cộng đồng đã kiểm chứng (Siliqs/DFRobot): 0x29, CTRL2, CTRL1

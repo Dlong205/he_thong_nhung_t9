@@ -1,0 +1,14 @@
+\begin{tikzpicture}[x=1mm,y=1mm,>=Latex,font=\fontsize{12}{15}\selectfont,
+ block/.style={draw,rectangle,align=center,text width=38mm,minimum height=17mm,inner sep=2mm}]
+\node[block] (mpu) at (0,0) {MPU6500\\Gia tốc và gyro};
+\node[block] (mcu) at (58,0) {STM32F103\\Hiệu chuẩn; Acc, gyro,\\CF và Kalman};
+\node[block] (pc) at (116,0) {Máy tính\\Ghi dữ liệu, đồ thị\\và mô hình 3D};
+\node[block] (mag) at (0,-40) {QMC5883P\\Yaw mở rộng};
+\node[block] (servo) at (58,40) {Servo SG90\\Bàn quay đối chứng};
+\node[block] (oled) at (116,-40) {OLED\\Hiển thị góc tại mạch};
+\draw[->] (mpu) -- node[above,align=center,font=\fontsize{10}{12}\selectfont]{I2C\\+ INT} (mcu);
+\draw[->] (mcu) -- node[above,font=\fontsize{10}{12}\selectfont]{UART} (pc);
+\draw[->] (mag.east) -| (mcu.south);\draw[->] (mcu.south) |- (oled.west);
+\draw[->] (mcu.north) -- node[right,font=\fontsize{10}{12}\selectfont]{PWM} (servo.south);
+\draw[->,dashed] (servo.west) -| node[above,pos=.22,font=\fontsize{10}{12}\selectfont]{Quay cơ khí} (mpu.north);
+\end{tikzpicture}

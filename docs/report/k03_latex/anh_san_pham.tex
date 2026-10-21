@@ -1,0 +1,21 @@
+\section{Ảnh sản phẩm và bố trí thí nghiệm thực tế}
+Những khung dưới đây dành cho ảnh chụp của chính nhóm sau khi hoàn tất lắp ráp. Trước khi nộp, thay từng khung bằng \,\texttt{\textbackslash includegraphics}\, đúng ảnh tương ứng và giữ chú thích theo nội dung đã kiểm chứng. Không đưa ảnh của bản thử servo đơn lẻ vào mục ``mạch tích hợp'' nếu các module còn lại chưa cùng hoạt động. Ảnh chỉ chứng minh cấu hình vật lý tại thời điểm chụp. Kết luận về độ chính xác và tốc độ phải dựa trên file log và bảng phân tích từ đúng lần chạy đó.
+
+\ChoAnhThucTe{Mặt trên của board, vị trí STM32, MPU6500, OLED và từ kế.}{Toàn cảnh sản phẩm hoàn thiện nhìn từ mặt trên.}
+
+\ChoAnhThucTe{Mặt bên hoặc phía dưới cho thấy dây 3,3 V, dây 5 V, mass chung, PA0, PB6/PB7, UART và ESP32-S3 GPIO21.}{Đấu nối và phân chia nguồn trên mô hình thực tế.}
+
+\ChoAnhThucTe{Cơ cấu servo, vị trí cố định thân servo, còi, hướng trục MPU6500 và thước góc độc lập.}{Bàn quay servo dùng trong phép thử Roll.}
+
+\ChoAnhThucTe{Màn OLED trong lúc mạch chạy; chụp cùng trạng thái góc và dấu thời gian của phép thử.}{Góc hiển thị trên màn OLED của mạch.}
+
+\ChoAnhThucTe{Màn máy tính hiển thị bốn đường góc cùng một lần đo và mô hình 3D nếu đã kết nối với bản firmware cuối.}{Giao diện giám sát và đối chiếu dữ liệu trên PC.}
+
+\ChoAnhThucTe{Bố trí phép đo STATIC hoặc STEP với thiết bị đo góc độc lập và toàn bộ nguồn cấp.}{Bố trí thí nghiệm đối chứng trên mạch hoàn chỉnh.}
+
+\subsection{Thông tin cần ghi kèm ảnh}
+Với ảnh toàn cảnh, cần ghi ngày chụp, nguồn điện sử dụng và phiên bản firmware đang chạy. Với ảnh sơ đồ dây thực tế, chú thích nên chỉ rõ chân PA0 nhận ngắt từ MPU6500, PB6/PB7 là bus I2C, PA9/PA10 dành cho UART và ESP32-S3 GPIO21 phát PWM servo. Nếu dùng phương án servo nội STM32 thì mới ghi PA1/TIM2\_CH2. Các nhãn này phải đặt theo dây thật, không chỉ theo sơ đồ dự kiến.
+
+Với ảnh bàn servo, cần đặt mốc $0\degree$ và hướng dương trên cùng mặt ảnh, để người đọc hiểu vì sao góc ref được so với Roll. Ảnh ở hai góc khác nhau giúp chứng minh cơ cấu thật sự quay và cách gá không cản dây. Với ảnh OLED, cần tránh chụp khi màn hình đang đổi số hoặc bị lóa; có thể ghi góc hiển thị và góc tham chiếu ngay trong chú thích. Ảnh màn PC cần thấy tên các đường, trục thời gian, đơn vị độ và nguồn dữ liệu. Nếu ảnh 3D được chụp từ file cũ trong khi board chạy firmware mới, phải ghi rõ trạng thái đó; ảnh demo cuối cần dùng đúng nguồn telemetry của bản tích hợp.
+
+Khi chèn ảnh vào LaTeX, giữ tỷ lệ gốc của ảnh, chỉ đặt một giới hạn chiều rộng và chiều cao. Có thể dùng \texttt{width=0.86\textbackslash textwidth} và \texttt{keepaspectratio}; nếu ảnh dọc, giới hạn thêm chiều cao để chú thích không bị đẩy sang trang sau. Không phóng ảnh mờ hoặc nén đến mức không đọc được nhãn chân, số trên OLED và trục đồ thị. Nếu một ảnh không thể chụp được, cần bỏ khung tương ứng khỏi bản nộp và diễn giải giới hạn bằng văn bản; không để lại khung trống trong bản cuối.

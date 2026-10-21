@@ -18,6 +18,12 @@ static const float SEQ_STEP[] = {0,30,60,0};
 static const uint32_t SEQ_STEP_HOLD = 5000;
 static const uint32_t SEQ_DRIFT_HOLD = 330000;
 
+// Hiệu chỉnh cho servo thực tế của bàn: toàn dải -90..+90 dùng 0.5..2.5 ms.
+// Nếu servo chạm cữ hoặc kêu ở hai đầu, giảm về 600..2400 us.
+static const float SERVO_MIN_US = 500.0f;
+static const float SERVO_CENTER_US = 1500.0f;
+static const float SERVO_MAX_US = 2500.0f;
+
 static float clampf(float v, float lo, float hi) {
   if (v < lo) return lo;
   if (v > hi) return hi;
@@ -53,8 +59,15 @@ void servoref_init(void) {
 
 void servoref_set(float angle_deg) {
   s_ref = clampf(angle_deg, -90.0f, 90.0f);
-  // 1500us giữa + 500/90 mỗi độ
-  pwm_set_us((uint32_t)(1500.0f + s_ref * (500.0f / 90.0f)));
+  float pulse_us;
+  if (s_ref < 0.0f) {
+    pulse_us = SERVO_CENTER_US +
+               (SERVO_CENTER_US - SERVO_MIN_US) * s_ref / 90.0f;
+  } else {
+    pulse_us = SERVO_CENTER_US +
+               (SERVO_MAX_US - SERVO_CENTER_US) * s_ref / 90.0f;
+  }
+  pwm_set_us((uint32_t)(pulse_us + 0.5f));
 }
 
 float servoref_get(void) { return s_ref; }

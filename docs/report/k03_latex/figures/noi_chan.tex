@@ -1,0 +1,16 @@
+\begin{tikzpicture}[x=1mm,y=1mm,>=Latex,font=\fontsize{11}{14}\selectfont,
+ block/.style={draw,rectangle,align=center,inner sep=2mm}]
+\node[block,text width=38mm,minimum height=61mm] (mcu) at (29,0) {\textbf{STM32F103C8T6}\\Blue Pill\\[3mm]PB6 / PB7: I2C1\\PA0: EXTI0\\PA1: TIM2\_CH2\\PA9 / PA10: USART1};
+\node[block,text width=31mm,minimum height=19mm] (mpu) at (120,28) {\textbf{MPU6500}\\SCL / SDA; INT\\AD0=GND; NCS=3,3 V};
+\node[block,text width=31mm,minimum height=15mm] (oled) at (120,0) {\textbf{OLED I2C}\\SCL / SDA};
+\node[block,text width=31mm,minimum height=15mm] (mag) at (120,-28) {\textbf{QMC5883P}\\SCL / SDA};
+\node[block,text width=38mm,minimum height=14mm] (uart) at (29,54) {\textbf{CH340 / Máy tính}\\TXD $\to$ PA10; RXD $\leftarrow$ PA9};
+\node[block,text width=38mm,minimum height=14mm] (servo) at (29,-54) {\textbf{Servo SG90}\\Signal: PA1; nguồn: 5 V};
+\draw (mcu.east) -- (79,0); \draw (79,-28) -- (79,28);
+\draw[<->] (79,28) -- (mpu.west);\draw[<->] (79,0) -- (oled.west);\draw[<->] (79,-28) -- (mag.west);
+\node[align=center,fill=white] at (76,12) {Bus I2C1\\PB6 / PB7};
+\draw[->] (mpu.north) -- (120,44) -- (44,44) -- (44,31);
+\node[fill=white] at (91,44) {INT $\to$ PA0};
+\draw[<->] (mcu.north) -- (uart.south);\draw[->] (mcu.south) -- (servo.north);
+\node[align=center,text width=143mm] at (75,-80) {MPU6500, OLED và QMC5883P: nguồn 3,3 V.\\Các khối dùng chung GND; servo dùng nguồn 5 V đủ dòng.};
+\end{tikzpicture}

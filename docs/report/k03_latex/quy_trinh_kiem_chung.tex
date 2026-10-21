@@ -1,0 +1,57 @@
+\chapter{QUY TRÌNH KIỂM CHỨNG BẢN TÍCH HỢP}
+
+\section{Mục đích và trạng thái bằng chứng}
+Chương này quy định cách bổ sung các bằng chứng còn thiếu sau phép đo tích hợp ngày 20/10/2026. File log hiện tại xác nhận đường dữ liệu, nhịp 500~Hz, chuỗi servo và độ ổn định tại các nấc; các tiêu chí độ chính xác tuyệt đối, độ trễ thuật toán và Yaw vẫn cần chuẩn đo độc lập. Ảnh, video và số liệu phải xuất phát từ cùng cấu hình phần cứng và firmware.
+
+Mỗi lần thử cần một mã nhận dạng duy nhất gồm ngày giờ, mã commit, cấu hình biên dịch và mã file CSV. Trong sổ đo nên ghi board, nguồn cấp, baud UART, trạng thái OLED/từ kế, cách gá cảm biến, nhiệt độ môi trường nếu có, giá trị $\alpha,Q,R$, thời gian hiệu chuẩn gyro và tên kịch bản servo. Khi một điều kiện thay đổi, cần tạo lần đo mới. Việc ghi này giúp phân biệt sai số do thuật toán với sai số do mạch, servo và môi trường.
+
+\section{Kiểm tra chức năng từng tầng}
+\subsection{Nguồn, clock và cảm biến}
+Trước tiên đo điện áp 3,3~V tại module MPU và OLED, điện áp 5~V tại servo khi đứng yên và khi chuyển nấc. Kiểm tra mass chung. Sau đó đọc các thanh ghi clock và xác nhận tần số hệ thống 72~MHz. Trên I2C, xác nhận địa chỉ MPU 0x68 hoặc 0x69 tùy AD0 và WHO\_AM\_I bằng 0x70. Một log khởi động nên chứa giá trị đọc, địa chỉ tìm thấy, cấu hình DLPF và bộ chia mẫu. Khi đọc burst 14 byte, đặt board phẳng để xem $a_z$ gần $1g$ và ba vận tốc góc sau hiệu chuẩn gần không. Đây là phép kiểm hợp lý, chưa phải hiệu chuẩn góc chuẩn.
+
+Để kiểm EXTI, đếm số sự kiện Data Ready trong một khoảng 30~s và so với xấp xỉ 15\,000 sự kiện danh định. Đồng thời đếm số lần vòng lặp xử lý mẫu và số timeout I2C. Nếu đếm ngắt tăng đúng nhưng số mẫu xử lý thấp, vòng lặp hoặc cờ Boolean đã bỏ mẫu. Nếu cả hai thấp, cần kiểm cấu hình INT của MPU và PA0. Việc nêu cả số lần thành công lẫn số lần thất bại hữu ích hơn chỉ ghi ``500 Hz'' trong bảng cấu hình.
+
+\subsection{Từng thuật toán và đầu ra}
+Với board đứng yên, ghi đồng thời góc gia tốc, gyro-only, CF, Kalman float và Kalman fixed trong 30~s. Kiểm tra mỗi giá trị hữu hạn, không nhảy bất thường và dấu góc đúng khi nghiêng chậm từng trục. Sau đó thực hiện một lần quay thuận rồi quay ngược về vị trí ban đầu; xem đường gyro-only có lệch mốc và CF/Kalman có trở về mốc hay không. Cần lưu cả dữ liệu thô sáu trục để khi đường góc sai có thể truy lại lỗi đổi đơn vị hoặc lỗi thứ tự byte.
+
+OLED phải hiển thị số đọc có cùng dấu và cùng đơn vị với telemetry. Nếu OLED cập nhật chậm hơn, điều đó cần được mô tả như khác biệt tần suất hiển thị. Từ kế được kiểm riêng bằng một vòng xoay ngang và phép nghiêng tại hướng cố định; kết quả Yaw chỉ được chấm định lượng khi đã có hiệu chuẩn từ trường và mốc hướng độc lập. Với phần mềm PC, kiểm CRC và số gói mất trước khi mở đồ thị realtime hoặc mô hình 3D.
+
+\section{Thiết kế bộ phép thử cuối}
+\begin{table}[htbp]\centering\fontsize{11}{15}\selectfont
+\caption{Bộ phép thử cần chạy trên đúng phiên bản firmware tích hợp.}\label{tab:final_tests}
+\begin{tabular}{|L{27mm}|L{52mm}|L{54mm}|}\hline
+Phép thử & Dữ liệu cần thu & Kết quả cần xuất\\\hline
+STATIC & Bảy nấc servo, góc chuẩn độc lập, bốn phương pháp & MAE, RMSE, bias, độ lệch chuẩn theo từng nấc\\\hline
+STEP & Dấu thời gian lệnh, góc thật và góc ước lượng & Trễ, thời gian xác lập, vọt lố có định nghĩa rõ\\\hline
+DRIFT & Ít nhất 330~s giữ yên, mẫu đầu/cuối & Độ trôi trung bình cửa sổ, biên độ, số mẫu mất\\\hline
+RUNG & Đoạn nền và đoạn tác động có mốc thời gian & Độ lệch chuẩn, ngoại lệ, điều kiện kích thích\\\hline
+TẢI ĐẦY ĐỦ & OLED, từ kế, servo, telemetry cùng chạy & Phân bố $\Delta t$, thời gian xử lý, số chu kỳ quá 2~ms\\\hline
+FLOAT/FIXED & Hai thuật toán nhận cùng dữ liệu & Chênh lệch góc, thời gian từng hàm, Flash/RAM\\\hline
+\end{tabular}
+\end{table}
+
+Với STATIC, nên chạy ít nhất hai vòng quét theo hai chiều để đánh giá độ rơ servo. Mỗi nấc phải có thời gian bỏ chuyển động và thời gian lấy trung bình được ghi rõ. Nếu dùng cùng một thước góc cho các nấc, nên đọc lặp lại hoặc chụp ảnh thước cùng board để kiểm sai số đọc. Kết quả chính cần trình bày theo từng nấc trước khi tính một chỉ số gộp; chỉ số gộp có thể che một góc biên kém hơn các góc giữa.
+
+Với DRIFT, thời gian ít nhất 330~s cho phép so với yêu cầu ``trên 5 phút''. Cần xác nhận mạch và servo không bị chạm trong khoảng này. Chọn trước kích thước cửa sổ đầu và cuối, ví dụ 10~s, để tránh chọn cửa sổ sau khi nhìn thấy kết quả. Nếu có thay đổi nhiệt độ đáng kể hoặc nguồn servo dao động, ghi chúng như điều kiện ảnh hưởng. Phép này nên lặp lại sau một lần tắt/bật để xem độ tái lập.
+
+Với STEP, phải tránh gọi góc lệnh là góc thật. Nếu không có cảm biến vị trí độc lập theo thời gian, có thể báo đường đáp ứng so với lệnh như phép minh họa, kèm giới hạn. Nếu có góc thật, quy trình xác định mức đầu, mức cuối, thời điểm vượt 10\%, 50\% và 90\% biên độ nên giống nhau cho cả bốn phương pháp. Độ trễ của thuật toán là hiệu thời điểm giữa góc thật và góc ước lượng, với dấu thời gian đã đồng bộ.
+
+\section{Mẫu bảng kết quả cần điền sau phép đo}
+\begin{table}[H]\centering\fontsize{11}{15}\selectfont
+\caption{Mẫu bảng sai số STATIC; chỉ điền sau khi có góc chuẩn độc lập.}\label{tab:static_blank}
+\begin{tabular}{|C{25mm}|C{28mm}|C{29mm}|C{28mm}|C{27mm}|}\hline
+Nấc lệnh & Góc chuẩn & Phương pháp & MAE & RMSE\\\hline
+$-60\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+$-45\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+$-30\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+$0\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+$30\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+$45\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+$60\degree$ & \CanBoSung{đo} & Acc / Gyro / CF / KF & \CanBoSung{tính} & \CanBoSung{tính}\\\hline
+\end{tabular}
+\end{table}
+
+Bảng~\ref{tab:static_blank} là cấu trúc ghi kết quả, không phải kết quả. Bản nộp cuối nên tách bốn phương pháp thành các cột hoặc bốn dòng trên mỗi nấc, bổ sung số mẫu, bias, độ lệch chuẩn và bất định của góc chuẩn. Nếu chỉ có ít chỗ, có thể đưa bảng đầy đủ vào phụ lục và giữ trong thân báo cáo một bảng tóm tắt; mọi giá trị tóm tắt phải truy được về dữ liệu gốc.
+
+\section{Điều kiện kết luận và bàn giao}
+Sau các phép đo, đối chiếu từng yêu cầu của đề với một hình hoặc bảng cụ thể: tốc độ 500~Hz với phân bố $\Delta t$; bốn phương pháp với đồ thị cùng phép đo; sai số dưới $1\degree$ với chuẩn độc lập; không trôi sau 5 phút với DRIFT; float/fixed với benchmark từng hàm và bộ nhớ; màn hình, đồ thị PC và 3D với ảnh/video sản phẩm thật. Các tiêu chí chưa có bằng chứng phải giữ trạng thái ``chưa xác nhận'' trong bảng đối chiếu. Cách ghi này làm báo cáo có thể kiểm chứng và giúp nhóm biết việc cần làm trước buổi bảo vệ.
