@@ -35,7 +35,7 @@
     yawFilter: {value:null,lastElapsed:null}
   };
 
-  const COLORS = { acc: "#70b7ff", gyro: "#c590ff", cf: "#f8d36a", kalman: "#54e6c5" };
+  const COLORS = { acc: "#ff5f68", gyro: "#c590ff", cf: "#f8d36a", kalman: "#54e6c5" };
   const CHART_WINDOWS = [1, 2, 3, 6, 10, 20, 30];
   let toastTimer;
 
@@ -546,7 +546,7 @@
   $('clear-console').addEventListener('click',()=>{consoleLines=[];$('firmware-console').textContent='Đã xóa nhật ký.';});
   function updateChartControls(){const axis=$('chart-axis').value,yaw=axis==='yaw';
     $('chart-title').textContent=yaw?'Yaw thô, bù nghiêng và lọc web':`So sánh ${axis==='roll'?'Roll':'Pitch'} theo thời gian`;
-    const entries=yaw?[['yaw_raw','Yaw thô','leg-acc'],['yaw_tilt','Yaw bù nghiêng','leg-kalman'],['yaw_filtered','Yaw lọc web','leg-yaw-filtered']]
+    const entries=yaw?[['yaw_raw','Yaw thô','leg-yaw-raw'],['yaw_tilt','Yaw bù nghiêng','leg-kalman'],['yaw_filtered','Yaw lọc web','leg-yaw-filtered']]
       :[['acc','Acc','leg-acc'],['gyro','Gyro','leg-gyro'],['cf','CF','leg-cf'],['kalman','Kalman','leg-kalman']];
     for(const [i,label] of [...document.querySelectorAll('.legend label')].entries()){
       const entry=entries[i];label.hidden=!entry;if(!entry)continue;
