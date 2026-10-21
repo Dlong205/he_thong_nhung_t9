@@ -1,17 +1,17 @@
-/* K03 telemetry.c: AA55, LEN=81, little endian, CRC8 over bytes 2..83. */
+/* K03 telemetry.c: AA55, LEN=73, little endian, CRC8 over bytes 2..75. */
 (function(root){
   'use strict';
   function crc8(bytes){let c=0;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c&128)?((c<<1)^7)&255:(c<<1)&255;}return c;}
   function decode(bytes){
-    if(bytes.length!==85||bytes[0]!==170||bytes[1]!==85||bytes[2]!==81)throw Error('length');
-    if(crc8(bytes.subarray(2,84))!==bytes[84])throw Error('crc');
+    if(bytes.length!==77||bytes[0]!==170||bytes[1]!==85||bytes[2]!==73)throw Error('length');
+    if(crc8(bytes.subarray(2,76))!==bytes[76])throw Error('crc');
     const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength), floats=[];
     for(let i=0;i<14;i++)floats.push(v.getFloat32(7+4*i,true));
-    const extra=[v.getFloat32(67,true),v.getFloat32(71,true),v.getFloat32(76,true),v.getFloat32(80,true)];
+    const extra=[v.getFloat32(68,true),v.getFloat32(72,true)];
     if(![...floats,...extra].every(Number.isFinite))throw Error('nonfinite');
     return {timestamp:v.getUint32(3,true),ax:floats[0],ay:floats[1],az:floats[2],gx:floats[3],gy:floats[4],gz:floats[5],
       acc:{roll:floats[6],pitch:floats[7]},gyro:{roll:floats[8],pitch:floats[9]},cf:{roll:floats[10],pitch:floats[11]},kalman:{roll:floats[12],pitch:floats[13]},
-      exec_us:v.getUint16(63,true),dt_us:v.getUint16(65,true),fixed:{roll:extra[0],pitch:extra[1]},ref:v.getInt8(75),yaw_raw:extra[2],yaw_tilt:extra[3],yaw:extra[3],protocol:'binary'};
+      exec_us:v.getUint16(63,true),dt_us:v.getUint16(65,true),ref:v.getInt8(67),yaw_raw:extra[0],yaw_tilt:extra[1],yaw:extra[1],protocol:'binary'};
   }
   class Decoder {
     constructor(onPacket,onText=()=>{}){this.onPacket=onPacket;this.onText=onText;this.reset();}
@@ -24,11 +24,11 @@
           if(b.length-pos<2)break;
           if(b[pos+1]!==85){this.stats.discarded++;pos++;continue;}
           if(b.length-pos<3)break;
-          if(b[pos+2]!==81){this.stats.length++;pos++;continue;}
-          if(b.length-pos<85)break;
-          const frame=b.subarray(pos,pos+85);let packet;
+          if(b[pos+2]!==73){this.stats.length++;pos++;continue;}
+          if(b.length-pos<77)break;
+          const frame=b.subarray(pos,pos+77);let packet;
           try{packet=decode(frame);}catch(e){this.stats[e.message]=(this.stats[e.message]||0)+1;pos++;continue;}
-          this.stats.valid++;pos+=85;this.onPacket(packet);continue;
+          this.stats.valid++;pos+=77;this.onPacket(packet);continue;
         }
         let end=pos;while(end<b.length&&b[end]!==10&&b[end]!==170)end++;
         if(end===b.length){if(end-pos>2048){this.stats.discarded+=end-pos;pos=end;}break;}

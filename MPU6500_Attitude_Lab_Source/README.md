@@ -11,7 +11,7 @@ Commit nguồn: `b09d0790303d846fc1e504be4bb39b5d77126627`
 - `dist/index.html`: giao diện chính.
 - `dist/styles.css`: toàn bộ giao diện và responsive.
 - `dist/app.js`: điều khiển giao diện, Web Serial, đồ thị và chỉ số.
-- `dist/protocol.js`: giải mã packet UART 85 byte và CRC8.
+- `dist/protocol.js`: giải mã packet UART 77 byte và CRC8.
 - `dist/aircraft.js`: mô hình máy bay 3D.
 - `dist/wiring.js`: hình/sơ đồ nối dây trên web.
 - `.openai/hosting.json`: cấu hình dự án Sites hiện tại.
@@ -45,11 +45,11 @@ Web Serial cần trình duyệt desktop có hỗ trợ và phải đóng các te
 
 ## Giao thức STM32
 
-Website hiện nhận packet nhị phân đúng 85 byte:
+Website hiện nhận packet nhị phân đúng 77 byte:
 
 ```text
-AA 55 | LEN=81 | timestamp u32 | 14 x float32 |
-exec u16 | dt u16 | roll/pitch fixed float32 |
+AA 55 | LEN=73 | timestamp u32 | 14 x float32 |
+exec u16 | dt u16 |
 ref int8 | yaw raw float32 | yaw tilt float32 | CRC8
 ```
 

@@ -7,12 +7,12 @@ import time
 import serial
 
 
-FMT = '<I14fHH2fb2f'
+FMT = '<I14fHHb2f'
 PAYLOAD = struct.calcsize(FMT)
 FIELDS = [
     'ts', 'axg', 'ayg', 'azg', 'gxdps', 'gydps', 'gzdps',
     'racc', 'pacc', 'rgyro', 'pgyro', 'rcf', 'pcf', 'rkf', 'pkf',
-    'exec_us', 'dt_us', 'rkfix', 'pkfix', 'fw_ref', 'yawr', 'yawt'
+    'exec_us', 'dt_us', 'fw_ref', 'yawr', 'yawt'
 ]
 
 

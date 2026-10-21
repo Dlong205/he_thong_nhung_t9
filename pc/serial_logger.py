@@ -12,7 +12,7 @@ print(f'Open {a.port}, bo dong # ...')
 fout = open(a.out, 'w')
 header_written = False
 n = 0
-_DEFAULT_HDR = 'ts,axg,ayg,azg,gxdps,gydps,gzdps,racc,rpacc,rgyro,pgyro,rcf,pcf,rkf,pkf,exec_us,dt_us,rkfix,pkfix,ref,yawr,yawt'
+_DEFAULT_HDR = 'ts,axg,ayg,azg,gxdps,gydps,gzdps,racc,rpacc,rgyro,pgyro,rcf,pcf,rkf,pkf,exec_us,dt_us,ref,yawr,yawt'
 t0 = time.time()
 try:
     while True:

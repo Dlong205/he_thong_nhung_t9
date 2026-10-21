@@ -1,7 +1,7 @@
 """Giai ma goi telemetry BINARY tu STM32 -> ghi CSV (giong het dinh dang cu,
 nen analysis.py / eval_ref.py / realtime_plot.py dung lai duoc nguyen).
 
-Khung: AA 55 | LEN | TS(u32) | 14xf32 | EXEC(u16) | DT(u16) | rkfix(f32) | pkfix(f32) | ref(i8) | yawr(f32) | yawt(f32) | CRC8
+Khung: AA 55 | LEN | TS(u32) | 14xf32 | EXEC(u16) | DT(u16) | ref(i8) | yawr(f32) | yawt(f32) | CRC8
 Chay: python3 bin_logger.py --port /dev/ttyUSB0 --baud 115200 --out log.csv --sec 60
 """
 import argparse, struct, time, sys, re
@@ -15,10 +15,10 @@ ap.add_argument('--sec', type=int, default=0, help='0 = chay lien tuc, Ctrl+C de
 ap.add_argument('--cmd', default='', help='gui 1 lenh truoc khi log, vd MAGCAL hoac "BIN 0"')
 a = ap.parse_args()
 
-FMT = '<I14fHH2fb2f'
-PAYLOAD = struct.calcsize(FMT)  # 81
-HDR = 'ts,axg,ayg,azg,gxdps,gydps,gzdps,racc,rpacc,rgyro,pgyro,rcf,pcf,rkf,pkf,exec_us,dt_us,rkfix,pkfix,ref,yawr,yawt'
-INT_FIELDS = {0, 15, 16, 19}  # ts, exec, dt, ref giu dang int
+FMT = '<I14fHHb2f'
+PAYLOAD = struct.calcsize(FMT)  # 73
+HDR = 'ts,axg,ayg,azg,gxdps,gydps,gzdps,racc,rpacc,rgyro,pgyro,rcf,pcf,rkf,pkf,exec_us,dt_us,ref,yawr,yawt'
+INT_FIELDS = {0, 15, 16, 17}  # ts, exec, dt, ref giu dang int
 
 def crc8(d):
     crc = 0

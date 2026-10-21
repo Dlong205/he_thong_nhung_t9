@@ -16,7 +16,6 @@
 #include "complementary.h"
 #include "complementary_fix.h"
 #include "kalman.h"
-#include "kalman_fix.h"
 #include "exti.h"
 #include "telemetry.h"
 #include "servo_ref.h"
@@ -29,7 +28,7 @@
 #include <stdio.h>
 
 #define USE_EXTI 1
-#define USART_BAUD 115200u  // đủ cho gói binary 85B@50Hz (4.3KB/s). Full 500Hz thì đổi 460800.
+#define USART_BAUD 115200u  // đủ cho gói binary 77B@50Hz (3.85KB/s).
 // TẠM ẨN để kiểm tra lõi: 0 = bỏ servo + các test (SEQ/REF/MAGCAL), chỉ chạy
 // MPU + CF/Kalman + OLED + mag hiển thị. Muốn bật lại test: đổi thành 1.
 #define USE_SERVO 1
@@ -41,7 +40,6 @@ static GyroInt_t gint;
 static CF_t cf;
 static CFfix_t cffix;
 static Kalman_t kr, kp;
-static KalmanFix_t krf, kpf;
 
 static bool s_has_oled = false;
 static bool s_bin_on = true; // BIN 0 = tạm dừng gói binary (console sạch để gõ lệnh)
@@ -52,10 +50,6 @@ volatile uint8_t i2c_scan_result[7];
 volatile uint8_t i2c_mpu_whoami_last = 0;
 volatile uint8_t i2c_mpu_init_ok = 0;
 volatile uint32_t mpu_read_fail_total = 0;
-// Giữ số liệu trong RAM để xem qua ST-Link khi trình duyệt đang giữ UART.
-volatile uint32_t last_exec_us = 0, max_exec_us = 0;
-volatile uint32_t max_sample_dt_us = 0, late_sample_count = 0;
-volatile uint32_t exti_ok_count = 0, fallback_count = 0;
 #if USE_MAGCAL
 // MAGCAL: thu hard-iron 15s (xoay ngang 360°), không chặn loop
 static bool s_magcal = false;
@@ -161,6 +155,9 @@ int main(void) {
 
 #if USE_SERVO
   servoref_init();
+  // PWM vừa bật có thể kéo servo từ góc cũ về 0 và rung giá MPU.
+  // Đợi cơ cấu đứng yên rồi mới lấy gyro bias; chỉ chặn trong boot.
+  board_delay_ms(1500);
 #else
   usart1_write("# SERVO OFF (tam an de kiem tra loi)\r\n");
 #endif
@@ -170,7 +167,6 @@ int main(void) {
 #endif
 
   kalman_init(&kr); kalman_init(&kp);
-  kfix_init(&krf); kfix_init(&kpf);
   cf_init(&cf, CF_ALPHA_DEFAULT);
   cffix_init(&cffix, CF_ALPHA_DEFAULT);
   gyro_int_reset(&gint);
@@ -191,7 +187,6 @@ int main(void) {
   telemetry_banner();
 
   uint32_t last_dwt = timing_cycles();
-  uint32_t last_valid_dwt = 0; // mốc của mẫu MPU đọc thành công gần nhất
   uint32_t cnt = 0, int_ok = 0, int_timeout = 0;
   char cmd[96];
   float yaw_r = 0, yaw_t = 0;
@@ -248,11 +243,11 @@ int main(void) {
     uint32_t now_cyc = timing_cycles();
     uint32_t dt_us = dwt_to_us(last_dwt, now_cyc);
 #if USE_EXTI
-    if (exti_consume()) { int_ok++; exti_ok_count++; }
+    if (exti_consume()) { int_ok++; }
     else {
-      // Không có INT: vẫn lấy mẫu bằng DWT ở 500 Hz thay vì rơi xuống 200 Hz.
-      if (dt_us < 2000) continue;
-      int_timeout++; fallback_count++;
+      // Fallback nếu mất INT >5ms (tránh treo khi chưa cắm dây PA0)
+      if (dt_us < 5000) continue;
+      int_timeout++;
     }
 #else
     if (dt_us < 2000) continue;
@@ -298,18 +293,6 @@ int main(void) {
                     (unsigned long)mpu_read_fail_total);
       mpu_err = 0;
     }
-    // Chỉ cập nhật mốc sau một mẫu hợp lệ: lỗi I2C không làm mất thời gian
-    // thực đã trôi qua giữa hai lần cập nhật bộ lọc.
-    dt_us = last_valid_dwt ? dwt_to_us(last_valid_dwt, now_cyc) : 2000u;
-    last_valid_dwt = now_cyc;
-    if (dt_us > max_sample_dt_us) max_sample_dt_us = dt_us;
-    if (dt_us > 2500u) late_sample_count++;
-    // Khi mất mẫu lâu, không thể biết chuyển động gyro trong khoảng trống.
-    // Giới hạn bước dự đoán để tránh một lần cập nhật làm góc nhảy quá mạnh.
-    uint32_t filter_dt_us = dt_us;
-    if (filter_dt_us < 500u) filter_dt_us = 500u;
-    if (filter_dt_us > 20000u) filter_dt_us = 20000u;
-    if (dt_us > 65535u) dt_us = 65535u; // trường DT của gói UART là u16
     float al, gl;
     mpu6500_get_scale(&al, &gl);
     SensorData_t s;
@@ -319,7 +302,7 @@ int main(void) {
     s.gy = (float)gy / gl - gbias.gy;
     s.gz = (float)gz / gl - gbias.gz;
     s.mx = 0; s.my = 0; s.mz = 0;
-    s.dt = (float)filter_dt_us * 0.000001f;
+    s.dt = SYS_TS;
     s.ts_ms = board_millis();
 
     Attitude_t a;
@@ -331,13 +314,9 @@ int main(void) {
     cffix_update(&cffix, a.roll_acc, a.pitch_acc, s.gx, s.gy, s.dt);
     a.roll_kalman = kalman_update(&kr, a.roll_acc, s.gx, s.dt);
     a.pitch_kalman = kalman_update(&kp, a.pitch_acc, s.gy, s.dt);
-    float rkfix = kfix_update(&krf, a.roll_acc, s.gx, s.dt);
-    float pkfix = kfix_update(&kpf, a.pitch_acc, s.gy, s.dt);
     a.yaw_raw = yaw_r; a.yaw_tilt = yaw_t;
 
     uint32_t exec_us = dwt_to_us(c0, timing_cycles());
-    last_exec_us = exec_us;
-    if (exec_us > max_exec_us) max_exec_us = exec_us;
     cnt++;
     if (cnt % SYS_TELEMETRY_DIV == 0) {
       // Mag 50Hz (ODR chip 200Hz, đọc decimate đủ): poll DRDY rồi burst 6B LE
@@ -367,9 +346,9 @@ int main(void) {
       board_led_toggle();
       if (s_bin_on) {
 #if USE_SERVO
-        telemetry_send_bin(&s, &a, exec_us, dt_us, rkfix, pkfix, servoref_get());
+        telemetry_send_bin(&s, &a, exec_us, dt_us, servoref_get());
 #else
-        telemetry_send_bin(&s, &a, exec_us, dt_us, rkfix, pkfix, 0.0f);
+        telemetry_send_bin(&s, &a, exec_us, dt_us, 0.0f);
 #endif
       }
       // 10 page/s, đủ 8 page trong 0.8s. Chốt dữ liệu ở đầu mỗi vòng

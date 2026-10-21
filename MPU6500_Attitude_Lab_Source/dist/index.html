@@ -48,7 +48,7 @@
             <option value="kalman">Kalman</option>
             <option value="cf">Complementary</option>
             <option value="acc">Accelerometer</option>
-            <option value="gyro">Gyroscope</option><option value="fixed">Kalman Q16.16 một phần</option>
+            <option value="gyro">Gyroscope</option>
           </select>
         </div>
 
@@ -113,7 +113,7 @@
           <option value="921600">921600</option>
         </select>
 
-        <label class="field-label" for="protocol-mode">Định dạng firmware</label><select id="protocol-mode" class="full-select"><option value="binary">K03 binary · 85 byte · CRC8</option><option value="text">Bản cũ · RAW / ATT văn bản</option></select>
+        <label class="field-label" for="protocol-mode">Định dạng firmware</label><select id="protocol-mode" class="full-select"><option value="binary">K03 binary · 77 byte · CRC8</option><option value="text">Bản cũ · RAW / ATT văn bản</option></select>
         <div class="button-stack">
           <button id="connect-button" class="primary-button">
             <span class="usb-icon">⌁</span> Chọn cổng COM và kết nối
@@ -207,7 +207,7 @@
         <div><span>Xử lý đọc MPU + bộ lọc</span><strong id="exec-time">—</strong><small id="exec-range">Trung bình / min / max phiên</small></div>
         <div><span>Chu kỳ xử lý dt_us</span><strong id="sample-dt">—</strong><small id="dt-range">Quan sát qua log 50 Hz</small></div>
         <div><span>Khung CRC lỗi</span><strong id="crc-errors">0</strong><small id="decoder-errors">Độ dài / số không hợp lệ: 0</small></div>
-        <div><span>Chênh Kalman float − fixed</span><strong id="fixed-delta">—</strong><small id="fixed-max">Roll / Pitch; cùng mẫu</small></div>
+        <div><span>Bộ lọc Kalman</span><strong>Float · 2 trục</strong><small>Roll và Pitch từ STM32</small></div>
       </div>
       <p class="helper">exec_us được firmware đo trước khi xử lý từ kế, truyền telemetry và cập nhật OLED; không phải tải CPU toàn hệ thống. Mỗi 10 mẫu mới gửi một gói: thống kê này chỉ mô tả các mẫu được truyền. Khoảng trống timestamp không xác định chính xác số gói mất vì firmware chưa có sequence number.</p>
       <div class="session-bar"><span id="session-info">Chưa có dữ liệu</span><button id="clear-session" class="text-button">Bắt đầu phiên dữ liệu mới</button><button id="download-session" class="text-button">Tải toàn bộ CSV</button></div>
@@ -227,6 +227,7 @@
         <div class="oled-preview" aria-label="Bố cục bốn ô dựng từ telemetry, không phải ảnh đọc ngược từ OLED"><div class="oled-cell"><span>ROLL</span><strong id="oled-roll">—</strong></div><div class="oled-cell"><span>PITCH</span><strong id="oled-pitch">—</strong></div><div class="oled-cell"><span>YAW</span><strong id="oled-yaw">—</strong></div><div class="oled-cell"><span>REF</span><strong id="oled-ref">—</strong></div></div>
         <p class="helper">Bản xem trước khớp bố cục OLED 4 ô của firmware. Giá trị được dựng từ telemetry, không phải dữ liệu đọc ngược từ màn hình; Yaw = 0 chưa chứng minh từ kế đang hoạt động.</p>
         <label class="field-label" for="yaw-source">Yaw điều khiển mô hình</label><select id="yaw-source" class="full-select"><option value="tilt">Yaw bù nghiêng</option><option value="raw">Yaw thô</option><option value="off">Tắt Yaw · chỉ Roll/Pitch</option></select>
+        <p class="helper">“Tắt Yaw” chỉ ẩn góc quay trên mô hình web; QMC và màn OLED vẫn tiếp tục đo.</p>
         <label class="field-label" for="yaw-filter">Làm mượt Yaw trên web</label><select id="yaw-filter" class="full-select"><option value="off">Tắt lọc · phản hồi nhanh nhất</option><option value="fast">Nhanh · 0,2 s</option><option value="balanced" selected>Cân bằng · 0,6 s</option><option value="smooth">Mượt · 1,2 s</option></select>
         <p class="helper">Lọc vòng theo góc ±180° để không nhảy khi qua mốc; mức mượt cao sẽ phản hồi chậm hơn. Góc thô từ STM32 vẫn được giữ nguyên trong CSV.</p>
         <div class="yaw-panel" aria-label="Trạng thái yaw từ QMC5883P">
@@ -299,12 +300,12 @@
 
       <article class="panel protocol-panel">
         <div class="panel-head"><div><p class="label">SERIAL PROTOCOL</p><h3>Gói dữ liệu website đang chờ</h3></div><span class="step-badge">02</span></div>
-        <pre id="packet-example"><code>AA 55 | LEN=81 | ts_ms | 14×float32 | exec_us | dt_us
-| roll_fix | pitch_fix | ref:i8 | yaw_raw | yaw_tilt | CRC8</code></pre>
-        <p class="helper">85 byte, little-endian. CRC-8 đa thức 0x07, giá trị đầu 0, tính trên LEN và payload (byte 2–83). Web chỉ cập nhật góc khi khung hợp lệ.</p>
+        <pre id="packet-example"><code>AA 55 | LEN=73 | ts_ms | 14×float32 | exec_us | dt_us
+| ref:i8 | yaw_raw | yaw_tilt | CRC8</code></pre>
+        <p class="helper">77 byte, little-endian. CRC-8 đa thức 0x07, giá trị đầu 0, tính trên LEN và payload (byte 2–75). Web chỉ cập nhật góc khi khung hợp lệ.</p>
         <div class="protocol-fields"><span>115200 · 8N1</span><span>50 gói/s danh định</span><span>UART hai chiều</span></div>
-        <details class="wiring-detail"><summary>Các trường đang nhận từ firmware</summary><p>ax, ay, az (g); gx, gy, gz (°/s); Roll/Pitch của Acc, Gyro, CF, Kalman; exec_us, dt_us; Roll/Pitch fixed; góc lệnh servo; Yaw thô và bù nghiêng. Gói hiện không có dữ liệu từ trường mx/my/mz, bias Kalman hoặc số thứ tự gói.</p></details>
-        <details class="wiring-detail"><summary>Thông số thuật toán trong mã đã gửi</summary><p>α = 0,98; Q_angle = 0,001; Q_bias = 0,003; R = 0,03. Firmware dùng dt cố định 0,002 s cho bộ lọc; dt_us là thời gian đo riêng. Web không thay đổi tham số bộ lọc trên STM32.</p><p>Bản fixed lượng tử hóa trạng thái angle/bias theo Q16.16, vẫn tính bằng float và giữ P/Q/R float. Không gọi là Kalman hoàn toàn số nguyên.</p></details>
+        <details class="wiring-detail"><summary>Các trường đang nhận từ firmware</summary><p>ax, ay, az (g); gx, gy, gz (°/s); Roll/Pitch của Acc, Gyro, CF, Kalman; exec_us, dt_us; góc lệnh servo; Yaw thô và bù nghiêng. Gói hiện không có dữ liệu từ trường mx/my/mz, bias Kalman hoặc số thứ tự gói.</p></details>
+        <details class="wiring-detail"><summary>Thông số thuật toán trong mã đã gửi</summary><p>α = 0,98; Q_angle = 0,001; Q_bias = 0,003; R = 0,03. Firmware dùng dt cố định 0,002 s cho bộ lọc; dt_us là thời gian đo riêng. Web không thay đổi tham số bộ lọc trên STM32.</p></details>
         <details class="wiring-detail"><summary>Tương thích bản firmware cũ</summary><p>Chọn “RAW / ATT văn bản” và baud đúng bản cũ. Với RAW, góc được tính xem trước trên PC; với binary hoặc ATT, góc đến từ STM32.</p></details>
       </article>
     </section>
@@ -341,8 +342,8 @@
   </footer>
 
   <script src="./aircraft.js?v=mpu-dot-1" defer></script>
-  <script src="./protocol.js" defer></script>
-  <script src="./app.js?v=web-20261022-acc-red" defer></script>
+  <script src="./protocol.js?v=kalman-float-77-20261022" defer></script>
+  <script src="./app.js?v=yaw-web-status-20261022" defer></script>
   <script src="./wiring.js?v=bus-2" defer></script>
 </body>
 </html>

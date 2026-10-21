@@ -247,11 +247,10 @@
     state.samples.push(packet);if(state.samples.length>state.maxChart)state.samples.shift();
     const row={reference_measured:capture&&isReal?capture.reference:'',reference_axis:capture&&isReal?capture.axis:'',trial_id:capture&&isReal?capture.id:'',source:isReal?'hardware':'demo',protocol:packet.protocol||'demo',segment:state.segments,timestamp:packet.timestamp,elapsed_s:state.elapsed,
       roll_acc:packet.acc.roll,pitch_acc:packet.acc.pitch,roll_gyro:packet.gyro.roll,pitch_gyro:packet.gyro.pitch,roll_cf:packet.cf.roll,pitch_cf:packet.cf.pitch,roll_kalman:packet.kalman.roll,pitch_kalman:packet.kalman.pitch,
-      roll_fixed:packet.fixed?.roll??'',pitch_fixed:packet.fixed?.pitch??'',ref_command:packet.ref??'',yaw_raw:packet.yaw_raw??'',yaw_tilt:packet.yaw_tilt??'',yaw_filtered_web:packet.yaw_filtered??'',yaw_filter_mode:$('yaw-filter').value,mag_fresh:isReal?(peripheral.magFresh===true?'1':'0'):'demo',mag_calibrated:isReal?(peripheral.magCalibrated===true?'1':'0'):'demo',exec_us:packet.exec_us??'',dt_us:packet.dt_us??'',ax:packet.ax,ay:packet.ay,az:packet.az,gx:packet.gx,gy:packet.gy,gz:packet.gz};
+      ref_command:packet.ref??'',yaw_raw:packet.yaw_raw??'',yaw_tilt:packet.yaw_tilt??'',yaw_filtered_web:packet.yaw_filtered??'',yaw_filter_mode:$('yaw-filter').value,mag_fresh:isReal?(peripheral.magFresh===true?'1':'0'):'demo',mag_calibrated:isReal?(peripheral.magCalibrated===true?'1':'0'):'demo',exec_us:packet.exec_us??'',dt_us:packet.dt_us??'',ax:packet.ax,ay:packet.ay,az:packet.az,gx:packet.gx,gy:packet.gy,gz:packet.gz};
     state.log.push(row);if(state.log.length>state.maxLog){state.log.shift();state.dropped++;}
     if(isReal && packet.protocol==='binary'){
       updateStats(execStats,packet.exec_us);updateStats(dtStats,packet.dt_us);
-      maxDelta=Math.max(maxDelta,Math.abs(packet.kalman.roll-packet.fixed.roll),Math.abs(packet.kalman.pitch-packet.fixed.pitch));
       if(packet.dt_us>2000)overBudget++;
     }
     if(capture&&isReal){
@@ -306,7 +305,7 @@
     const { roll, pitch, yaw, yawActive } = displayAngles();
     els.roll.textContent = `${roll.toFixed(2)}°`;
     els.pitch.textContent = `${pitch.toFixed(2)}°`;
-    els.yaw.textContent = $('yaw-source').value==='off'?'OFF':yawActive?`${yaw.toFixed(2)}°`:'—';
+    els.yaw.textContent = $('yaw-source').value==='off'?'TẮT WEB':yawActive?`${yaw.toFixed(2)}°`:'—';
     $('yaw-relative-value').textContent=yawActive?`${yaw.toFixed(2)}°`:'—';
     $('yaw-needle').style.transform=`rotate(${yaw}deg)`;
     const axis=$("chart-axis").value;
@@ -438,7 +437,7 @@
     requestAnimationFrame(animate);
   }
 
-  let streamPaused=false, peripheral={oled:null,mag:null,magFresh:null,magCalibrated:null,lastMagReportAt:0}, capture=null, measurementRows=[],consoleLines=[],maxDelta=0,overBudget=0;
+  let streamPaused=false, peripheral={oled:null,mag:null,magFresh:null,magCalibrated:null,lastMagReportAt:0}, capture=null, measurementRows=[],consoleLines=[],overBudget=0;
   let execStats={n:0,mean:0,m2:0,min:Infinity,max:-Infinity},dtStats={...execStats};
   const decoder=new K03.Decoder(p=>ingest(p,true),firmwareText);
   function updateStats(s,x){s.n++;const d=x-s.mean;s.mean+=d/s.n;s.m2+=d*(x-s.mean);s.min=Math.min(s.min,x);s.max=Math.max(s.max,x);}
@@ -475,8 +474,7 @@
     cancelCapture('Đã mở phiên mới.');decoder.reset();state.log=[];state.samples=[];state.elapsed=0;state.previousTimestamp=null;state.dropped=0;state.segments=1;
     state.chartFollowLive=true;state.chartViewEnd=null;updateChartToolbar();
     state.packetCount=0;state.errorCount=0;state.packetsThisSecond=0;state.measuredRate=0;state.lastPacketAt=0;state.receiveBuffer='';
-    state.zeroRoll=state.zeroPitch=state.zeroYaw=0;state.yawFilter={value:null,lastElapsed:null};maxDelta=0;overBudget=0;
-    if(state.selectedSource==="fixed"){state.selectedSource="kalman";els.source.value="kalman";}
+    state.zeroRoll=state.zeroPitch=state.zeroYaw=0;state.yawFilter={value:null,lastElapsed:null};overBudget=0;
     execStats={n:0,mean:0,m2:0,min:Infinity,max:-Infinity};dtStats={...execStats};
     state.rawFilter={lastTimestamp:null,gyroRoll:0,gyroPitch:0,cfRoll:0,cfPitch:0,roll:{angle:0,bias:0,p00:0,p01:0,p10:0,p11:0},pitch:{angle:0,bias:0,p00:0,p01:0,p10:0,p11:0}};
     state.latest={timestamp:0,acc:{roll:0,pitch:0},gyro:{roll:0,pitch:0},cf:{roll:0,pitch:0},kalman:{roll:0,pitch:0},yaw:0,ax:0,ay:0,az:1,gx:0,gy:0,gz:0};
@@ -517,8 +515,6 @@
     $('exec-time').textContent=binary?`${p.exec_us} µs`:'—';$('sample-dt').textContent=binary?`${p.dt_us} µs`:'—';
     $('exec-range').textContent=execStats.n?`TB ${fmt(execStats.mean)} · min ${execStats.min} · max ${execStats.max} µs`:'Chưa có mẫu thật';
     $('dt-range').textContent=dtStats.n?`STD ${fmt(Math.sqrt(dtStats.n>1?dtStats.m2/(dtStats.n-1):0))} µs · ${overBudget}/${dtStats.n} mẫu log >2 ms`:'Chưa có mẫu thật';
-    $('fixed-delta').textContent=binary?`${fmt(p.kalman.roll-p.fixed.roll,4)} / ${fmt(p.kalman.pitch-p.fixed.pitch,4)}°`:'—';
-    $('fixed-max').textContent=`Max |Δ| phiên: ${fmt(maxDelta,4)}° · fixed một phần`;
     $('servo-feedback').textContent=binary?`${p.ref}°`:'—';
     $('oled-roll').textContent=binary?fmt(p.kalman.roll,2):'—';
     $('oled-pitch').textContent=binary?fmt(p.kalman.pitch,2):'—';
@@ -527,13 +523,12 @@
     $('yaw-tilt-value').textContent=yawLive?`${fmt(p.yaw_tilt,2)}°`:'—';
     $('yaw-raw-value').textContent=yawLive?`${fmt(p.yaw_raw,2)}°`:'—';
     $('yaw-filtered-value').textContent=yawLive&&Number.isFinite(p.yaw_filtered)?`${fmt(p.yaw_filtered,2)}°`:'—';
-    $('yaw-health').textContent=state.demoRunning&&!state.connected?'Mô phỏng':!state.connected?'Chưa kết nối':peripheral.mag===false?'Không thấy QMC':!peripheral.lastMagReportAt?'Chờ báo cáo từ kế':yawLive?'Mẫu mới':'Mẫu cũ / mất từ kế';
+    $('yaw-health').textContent=state.demoRunning&&!state.connected?'Mô phỏng':!state.connected?'Chưa kết nối':peripheral.mag===false?'Không thấy QMC':!peripheral.lastMagReportAt?'Chờ báo cáo từ kế':yawLive?($('yaw-source').value==='off'?'Mẫu mới · tắt trên web':'Mẫu mới'):'Mẫu cũ / mất từ kế';
     $('yaw-calibration').textContent=state.demoRunning&&!state.connected?'Mô phỏng':peripheral.magCalibrated===true?'Đã hiệu chuẩn':peripheral.magCalibrated===false?'Chưa hiệu chuẩn':'Chưa xác nhận';
     $('oled-ref').textContent=binary?fmt(p.ref,2):'—';
     const status=x=>x===null?'?':x?'OK':'không có';$('peripheral-state').textContent=`OLED ${status(peripheral.oled)} · MAG ${status(peripheral.mag)}`;
     $('session-info').textContent=`${state.connected?'Phần cứng':state.demoRunning?'Mô phỏng':'Phiên đã dừng'} · ${state.log.length.toLocaleString('vi-VN')} mẫu lưu · ${state.elapsed.toFixed(1)} s · giới hạn 100.000 mẫu${state.dropped?' · đã bỏ '+state.dropped+' mẫu đầu':''}`;
     $('capture-static').disabled=!binary||!!capture||streamPaused;
-    const fixedOption=els.source.querySelector('[value="fixed"]');if(fixedOption)fixedOption.disabled=!p.fixed;
     if(capture){if(!hardware||streamPaused)cancelCapture('Dữ liệu bị gián đoạn; phép đo bị hủy.');else if(now-capture.start>=5000)finishCapture();else $('measurement-status').textContent=`Đang thu ${(5-(now-capture.start)/1000).toFixed(1)} s · ${capture.rows.length} mẫu`;}
     updateDecoderStats();updateCommandButtons();
   }

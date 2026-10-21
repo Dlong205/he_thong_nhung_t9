@@ -7,20 +7,18 @@ Theo gợi ý đề: `HEADER | LENGTH | TIMESTAMP | DATA | CHECKSUM`.
 | Trường | Kiểu | Byte | Giá trị / Ghi chú |
 | :--- | :--- | :--- | :--- |
 | HEADER | 2B | 0..1 | `0xAA 0x55` (sync) |
-| LENGTH | u8 | 2 | 81 = số byte từ TS đến hết payload |
+| LENGTH | u8 | 2 | 73 = số byte từ TS đến hết payload |
 | TIMESTAMP | u32 | 3..6 | `HAL_GetTick()` ms |
 | DATA | 14×f32 | 7..62 | ax,ay,az, gx,gy,gz, racc,rpacc, rgyro,pgyro, rcf,pcf, rkf,pkf |
 | EXEC | u16 | 63..64 | thời gian xử lý mẫu (DWT, us) |
-| DT | u16 | 65..66 | khoảng cách giữa hai mẫu MPU hợp lệ (us), bão hòa ở 65535 |
-| rkfix | f32 | 67..70 | Kalman fixed-point roll |
-| pkfix | f32 | 71..74 | Kalman fixed-point pitch |
-| ref | i8 | 75 | góc servo lệnh (deg, -90..90) |
-| yawr | f32 | 76..79 | yaw raw |
-| yawt | f32 | 80..83 | yaw bù nghiêng |
-| CHECKSUM | u8 | 84 | CRC8 poly 0x07 trên LEN+payload |
+| DT | u16 | 65..66 | chu kỳ lấy mẫu thực (us) |
+| ref | i8 | 67 | góc servo lệnh (deg, -90..90) |
+| yawr | f32 | 68..71 | yaw raw |
+| yawt | f32 | 72..75 | yaw bù nghiêng |
+| CHECKSUM | u8 | 76 | CRC8 poly 0x07 trên LEN+payload |
 
-Tổng 85 byte/gói. Ở 50Hz = 4.25 KB/s → 115200 thừa sức (11.5 KB/s).
-Nếu muốn stream cả 500Hz (38.5 KB/s) chỉ cần đổi `USART_BAUD` về 460800 và `SYS_TELEMETRY_DIV` về 1.
+Tổng 77 byte/gói. Ở 50Hz = 3.85 KB/s → 115200 thừa sức (11.5 KB/s).
+Nếu muốn stream cả 500Hz (38.5 KB/s) cần tăng `USART_BAUD` và đổi `SYS_TELEMETRY_DIV` về 1; kiểm tra thêm tải xử lý và UART trước khi dùng.
 
 ## Vì sao đổi từ ASCII sang binary
 

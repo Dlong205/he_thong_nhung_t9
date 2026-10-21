@@ -1,6 +1,6 @@
 """Đánh giá bàn đối chứng K03: so 4 PP (acc/gyro/cf/kalman-roll) với góc servo ref.
 Dùng: python3 eval_ref.py log.csv [--plot out.png] [--settle 2.0]
-- log.csv phải có cột ref (firmware mới). File cũ không có ref vẫn chạy được jitter/float-fix.
+- log.csv phải có cột ref (firmware mới). File cũ không có ref vẫn chạy được phần jitter và drift.
 - Chỉ số: MAE/RMSE/bias/std/peak per-PP, drift gyro, latency step (tương quan chéo).
 - --settle: bỏ N giây đầu mỗi nấc ref (qua độ) khi tính static.
 """
@@ -66,7 +66,7 @@ if has_ref:
             lag = np.argmax(corr) - (n - 1)
             print(f'{key} latency ~ {lag/FS:+.2f}s ({lag:+d} mẫu @50Hz, + là ước lượng trễ hơn ref)')
 else:
-    print('KHÔNG có cột ref (file cũ / chưa gắn servo). Chạy jitter + float/fix + drift tương đối:')
+    print('KHÔNG có cột ref (file cũ / chưa gắn servo). Chạy jitter + drift tương đối:')
     for k in ['racc', 'rgyro', 'rcf', 'rkf', 'exec_us', 'dt_us']:
         if k in cols:
             d = cols[k]

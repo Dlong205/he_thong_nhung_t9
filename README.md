@@ -5,18 +5,15 @@
 > **Phiên bản triển khai:** STM32F103 + hai bus I2C tách biệt + Data Ready Interrupt + Complementary/Kalman + OLED + telemetry binary + Web Serial/3D
 > **Mục tiêu:** bám yêu cầu đề tài mức Khó, có phần lập trình thanh ghi rõ ràng, thuật toán tự viết, đo đạc định lượng và demo trực quan.
 
-## Cập nhật thuật toán ngày 22/10/2026
+> **Bản firmware hiện tại:** chỉ chạy một Kalman hai trạng thái dạng `float` trong `Core/Src/kalman.c` cho Roll và Pitch. Bản Kalman fixed-point đã được bỏ; gói UART hiện dài 77 byte (`LEN=73`). Những bảng/log cũ có cột `rkfix`, `pkfix` và phần kế hoạch fixed-point bên dưới là dữ liệu lịch sử, không mô tả firmware hiện tại. Cần đo lại hiệu năng sau khi nạp bản này trước khi cập nhật số liệu báo cáo.
 
-- Kalman fixed hiện tính cả góc (Q16.16), gyro bias (Q10.22), ma trận hiệp phương sai và Q/R (Q4.28) bằng số nguyên. Chỉ đầu vào/đầu ra telemetry được chuyển đổi với `float`.
-- `dt` của các bộ lọc lấy từ DWT giữa hai mẫu MPU đọc thành công; giới hạn 0,5–20 ms khi mất mẫu lâu. Trường `dt_us` trong telemetry ghi khoảng thời gian thực, bão hòa ở 65.535 us do định dạng `u16`. Khi PA0 không có Data Ready, firmware dự phòng bằng DWT ở nhịp 2 ms.
-- Replay ba bộ CSV lịch sử bằng `python3 tests/test_kalman_fixed_replay.py`: chênh lệch Kalman float–fixed lớn nhất dưới 0,15° trên dữ liệu thử. Bản này đã được nạp lên STM32. Trong lần kiểm tra ngắn qua ST-Link, PA0 không có xung Data Ready (`exti_ok_count=0`); fallback DWT xử lý khoảng 2.457 mẫu/5 s, telemetry khoảng 245 gói/5 s, 0 lỗi đọc MPU. Thời gian xử lý lõi tối đa khoảng 1,79 ms, chưa tính OLED/telemetry; có 49 khoảng mẫu vượt 2,5 ms và khoảng dài nhất khoảng 7,2 ms. Cần ghi lại log dài từ firmware mới trước khi dùng số liệu hiệu năng hoặc sai số trong báo cáo.
-- Các số đo ngày 20/10 bên dưới thuộc firmware trước cập nhật này; không dùng chúng làm kết quả đo của bản fixed mới.
+> **Hiệu chuẩn gyro khi khởi động:** sau khi bật PWM đưa servo về 0°, firmware chờ 1,5 giây cho cơ cấu đứng yên rồi mới lấy 1000 mẫu tính gyro bias. Phép đo ngắn sau sửa cho thấy góc gyro-only đổi khoảng −0,09° trong 17,2 giây; phép đo này chưa thay thế thử nghiệm drift dài hạn. Gyro-only vẫn tích phân từ lúc STM32 khởi động, không tự đặt lại khi mở trang web.
 
 ## Tiến độ thực tế (2026-10-20 — bản tích hợp cuối)
 
 - Hai nhóm bus: OLED và QMC5883P dùng chung **I2C1 PB6/PB7 400 kHz**; MPU6500 dùng riêng **I2C2 PB10/PB11 100 kHz**. Lỗi trên bus hiển thị/từ kế không giữ SDA/SCL của MPU.
-- Vòng xử lý MPU chạy danh định **500 Hz**, telemetry binary 85 byte có CRC8 ở **50 Hz**, UART1 115200 qua CP2102/CH340. File đo cuối `roll_servo_wire_reference_final_2026-10-20.csv` có 1.728 mẫu hợp lệ và 0 frame lỗi.
-- Trong phép đo cuối: `dt_us` trung bình **1997,58 us**, jitter chuẩn **2,04 us**; `exec_us` trung bình **677,72 us**, cực đại **681 us**, thấp hơn chu kỳ 2 ms. Kalman float và fixed lệch cực đại **0,00081°**.
+- Vòng xử lý MPU chạy danh định **500 Hz**, telemetry binary hiện dài 77 byte có CRC8 ở **50 Hz**, UART1 115200 qua CP2102/CH340. File đo lịch sử `roll_servo_wire_reference_final_2026-10-20.csv` có 1.728 mẫu hợp lệ và 0 frame lỗi ở định dạng gói 85 byte trước đây.
+- Phép đo lịch sử ngày 20/10: `dt_us` trung bình **1997,58 us**, jitter chuẩn **2,04 us**; `exec_us` trung bình **677,72 us**, cực đại **681 us**. Các số này thuộc firmware cũ và chưa được xác nhận lại trên bản chỉ dùng Kalman float.
 - OLED SSD1306/SH1106 hiển thị bốn ô `ROLL`, `PITCH`, `YAW`, `REF`; framebuffer 1 KB được gửi từng page trên I2C1 PB6/PB7.
 - Khung 3D trên web có trục O–X–Y–Z cố định; phần Yaw hiển thị góc thô, bù nghiêng, đồ thị so sánh và trạng thái mẫu mới/cũ từ QMC5883P. Nút đặt mốc Yaw dùng để quan sát quay tương đối.
 - Website trong `MPU6500_Attitude_Lab_Source/dist/` dùng Web Serial, giải mã đúng packet binary/CRC8, vẽ bốn phương pháp, mô hình 3D, thống kê thời gian và xuất CSV. Chạy local qua HTTP trên Chrome/Edge hoặc Firefox 151+ bản desktop.
@@ -24,7 +21,7 @@
 - Log lịch sử vẫn cung cấp phép drift 330 s, hiệu chuẩn sáu mặt, rung và so sánh bốn phương pháp. Yaw từ QMC5883P là phần mở rộng; dữ liệu hiện chỉ dùng để đánh giá độ ổn định và lặp lại, chưa khẳng định độ chính xác tuyệt đối.
 - Giới hạn còn lại: góc servo là góc lệnh, dây chỉ tạo mốc quay về nên chưa phải chuẩn góc độc lập. Báo cáo không dùng kết quả này để khẳng định sai số tuyệt đối Kalman dưới 1°.
 
-> Các phần phía dưới giữ lại kế hoạch phát triển ban đầu để truy vết quá trình thực hiện. Khi có khác biệt, cấu hình triển khai và số đo ngày 20/10/2026 ở trên là trạng thái hiện hành.
+> Các phần phía dưới giữ lại kế hoạch phát triển ban đầu để truy vết quá trình thực hiện. Khi có khác biệt, xem ghi chú "Bản firmware hiện tại" ở đầu tài liệu.
 
 ---
 
@@ -787,7 +784,6 @@ với margin hợp lý.
 ---
 
 ### PHASE 11 -- Fixed-point
-Các mục sau ghi lại giai đoạn thử bản lai cũ; xem mục cập nhật ngày 22/10 ở đầu tài liệu cho mã hiện hành.
 - [x] Chọn Q-format (Q16.16).
 - [x] Xác định range.
 - [x] Chống overflow (giữ float cho tích trung gian).

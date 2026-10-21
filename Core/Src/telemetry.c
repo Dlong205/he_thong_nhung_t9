@@ -26,12 +26,12 @@ static void put_f32(uint8_t *p, float f) {
 }
 
 void telemetry_banner(void) {
-  usart1_write("# BIN pkt AA55|LEN|TS:u32|14xf32|EXEC:u16|DT:u16|rkfix:f32|pkfix:f32|ref:i8|yawr:f32|yawt:f32|CRC8\r\n");
+  usart1_write("# BIN pkt AA55|LEN=73|TS:u32|14xf32|EXEC:u16|DT:u16|ref:i8|yawr:f32|yawt:f32|CRC8\r\n");
   usart1_write("# f32 order: ax,ay,az,gx,gy,gz,racc,rpacc,rgyro,pgyro,rcf,pcf,rkf,pkf\r\n");
 }
 
 void telemetry_send_bin(const SensorData_t *s, const Attitude_t *a, uint32_t exec_us,
-                        uint32_t dt_us, float rkfix, float pkfix, float ref_deg) {
+                        uint32_t dt_us, float ref_deg) {
   uint8_t b[96];
   uint16_t i = 0;
   b[i++] = TELEMETRY_SYNC0;
@@ -49,8 +49,6 @@ void telemetry_send_bin(const SensorData_t *s, const Attitude_t *a, uint32_t exe
   #undef PF
   put_u16(&b[i], (uint16_t)exec_us); i += 2;
   put_u16(&b[i], (uint16_t)dt_us);   i += 2;
-  put_f32(&b[i], rkfix); i += 4;
-  put_f32(&b[i], pkfix); i += 4;
   b[i++] = (uint8_t)(int8_t)ref_deg;
   put_f32(&b[i], a->yaw_raw);  i += 4;
   put_f32(&b[i], a->yaw_tilt); i += 4;

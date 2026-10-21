@@ -367,24 +367,23 @@ Module & Giao diện tiêu biểu & Vai trò\\\hline
 \end{table}
 
 \section{Giao thức truyền dữ liệu và công cụ PC}
-Firmware tích hợp đóng gói 85 byte nhị phân ở 50~Hz, gồm dấu đồng bộ, thời gian, dữ liệu cảm biến, bốn góc Roll/Pitch, thời gian thực thi, chu kỳ mẫu, giá trị fixed, góc servo và Yaw. CRC-8 được dùng để phát hiện gói lỗi. Tốc độ dữ liệu thô là $85\times50=4250$~byte/s, tương đương khoảng 42,5~kbit/s trên UART 8N1, phù hợp 115\,200~baud.
+Firmware hiện tại đóng gói 77 byte nhị phân ở 50~Hz, gồm dấu đồng bộ, thời gian, dữ liệu cảm biến, bốn phương pháp góc Roll/Pitch, thời gian thực thi, chu kỳ mẫu, góc servo và Yaw. CRC-8 được dùng để phát hiện gói lỗi. Tốc độ dữ liệu thô là $77\times50=3850$~byte/s, tương đương khoảng 38,5~kbit/s trên UART 8N1, phù hợp 115\,200~baud.
 
 \texttt{bin\_logger.py} giải mã gói nhị phân và ghi CSV; \texttt{eval\_ref.py} tính sai số so với cột \texttt{ref}; \texttt{tune\_grid.py} quét tham số bộ lọc. Giao diện web trong \texttt{MPU6500\_Attitude\_Lab\_Source/dist} dùng Web Serial, kiểm LEN/CRC, vẽ bốn phương pháp, thống kê thời gian, mô hình 3D và xuất CSV trực tiếp. Trình duyệt gửi lệnh \texttt{BIN 1}/\texttt{BIN 0} và \texttt{REF/SEQ} qua cùng USART1; STM32 phát PWM servo trực tiếp trên PA1/TIM2\_CH2.
 
 \subsection{Tổ chức gói dữ liệu nhị phân}
 Gói dữ liệu có dấu đồng bộ \texttt{AA 55}, độ dài và mã kiểm tra ở cuối. Việc ghi lại thời gian, góc của từng phương pháp và cột góc lệnh trong cùng một gói giúp ghép các kết quả theo cùng mốc thời gian. Bảng~\ref{tab:packet} mô tả cấu trúc theo mã telemetry của dự án.
 \begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
-\caption{Cấu trúc gói telemetry 85 byte.}\label{tab:packet}
+\caption{Cấu trúc gói telemetry 77 byte.}\label{tab:packet}
 \begin{tabular}{|C{24mm}|L{39mm}|L{80mm}|}\hline
 Byte & Trường & Nội dung\\\hline
-0--2 & Đồng bộ, độ dài & \texttt{AA 55}, LEN = 81\\\hline
+0--2 & Đồng bộ, độ dài & \texttt{AA 55}, LEN = 73\\\hline
 3--6 & Dấu thời gian & \texttt{ts\_ms}, số nguyên 32 bit\\\hline
 7--62 & Dữ liệu đo & Sáu giá trị cảm biến và tám góc Roll/Pitch\\\hline
 63--66 & Đo thời gian & \texttt{exec\_us} và \texttt{dt\_us}\\\hline
-67--74 & Góc fixed & Roll và Pitch của bản Kalman fixed\\\hline
-75 & Góc lệnh & \texttt{ref}, số nguyên có dấu\\\hline
-76--83 & Yaw & Góc thô và góc bù nghiêng\\\hline
-84 & CRC & Mã kiểm tra gói dữ liệu\\\hline
+67 & Góc lệnh & \texttt{ref}, số nguyên có dấu\\\hline
+68--75 & Yaw & Góc thô và góc bù nghiêng\\\hline
+76 & CRC & Mã kiểm tra gói dữ liệu\\\hline
 \end{tabular}
 \end{table}
 
@@ -478,7 +477,7 @@ Trong file \texttt{vibration.csv}, đoạn 10~s đầu gần như đứng yên v
 \caption{Góc Roll trong phép đo rung, vùng tô là đoạn 10--20 giây.}\label{fig:vibration}
 \end{figure}
 
-\section{Tinh chỉnh tham số và so sánh float--fixed}
+\section{Tinh chỉnh tham số và dữ liệu so sánh lịch sử}
 Quét $\alpha$ ngoại tuyến trên đoạn tĩnh cho điểm nhỏ nhất của chỉ số RMSE quanh trung bình gia tốc tại $\alpha=0{,}98$ trong các giá trị đã thử. Vì mốc so sánh là chính tín hiệu gia tốc, chỉ số này phản ánh độ ổn định tương đối, không phải sai số so với góc thật.
 
 \begin{table}[htbp]\centering\fontsize{12}{17}\selectfont
@@ -490,13 +489,13 @@ RMSE ($\degree$) & 0,0173 & 0,0131 & 0,0114 & \textbf{0,0109} & 0,0127 & 0,0179\
 \end{tabular}
 \end{table}
 
-Trong phép đo 330~s, chênh lệch lớn nhất giữa góc Kalman float và bản Q16.16 một phần được ghi là $0{,}01\degree$ cho Roll/Pitch. Ở file tích hợp cuối, chênh lệch lớn nhất chỉ $0{,}00081\degree$. Đây là độ chênh giữa hai triển khai, không phải sai số so với góc chuẩn. Benchmark thời gian riêng từng hàm và số Flash/RAM vẫn cần đo nếu muốn kết luận về lợi ích hiệu năng của bản fixed.
+Trong phép đo 330~s của firmware cũ, chênh lệch lớn nhất giữa góc Kalman float và bản Q16.16 một phần là $0{,}01\degree$ cho Roll/Pitch; một file tích hợp cũ ghi $0{,}00081\degree$. Đây là dữ liệu lịch sử về hai triển khai, không phải sai số so với góc chuẩn. Firmware hiện tại đã bỏ bản Kalman fixed và chỉ giữ bản float.
 
 \section{Thời gian thực thi và jitter}
-File tích hợp cuối có 1\,728 gói hợp lệ, không có frame CRC lỗi. Chu kỳ mẫu có trung bình $1\,997{,}58~\mu\mathrm{s}$, độ lệch chuẩn $2{,}04~\mu\mathrm{s}$ và khoảng $1\,993$--$2\,002~\mu\mathrm{s}$, phù hợp mục tiêu 500~Hz. Trường \texttt{exec\_us} có trung bình $677{,}72~\mu\mathrm{s}$, khoảng $668$--$681~\mu\mathrm{s}$, thấp hơn chu kỳ 2~ms. Mốc đo \texttt{exec\_us} kết thúc sau cập nhật các bộ lọc và trước phần từ kế, đóng gói telemetry và đẩy OLED; do đó \texttt{dt\_us} mới là bằng chứng bao quát hơn cho lịch lấy mẫu khi các tác vụ nền cùng hoạt động.
+File tích hợp lịch sử có 1\,728 gói hợp lệ, không có frame CRC lỗi. Chu kỳ mẫu có trung bình $1\,997{,}58~\mu\mathrm{s}$, độ lệch chuẩn $2{,}04~\mu\mathrm{s}$ và khoảng $1\,993$--$2\,002~\mu\mathrm{s}$, phù hợp mục tiêu 500~Hz. Trường \texttt{exec\_us} có trung bình $677{,}72~\mu\mathrm{s}$, khoảng $668$--$681~\mu\mathrm{s}$, thấp hơn chu kỳ 2~ms. Mốc đo \texttt{exec\_us} kết thúc sau cập nhật các bộ lọc và trước phần từ kế, đóng gói telemetry và đẩy OLED; do đó \texttt{dt\_us} mới là bằng chứng bao quát hơn cho lịch lấy mẫu khi các tác vụ nền cùng hoạt động.
 
 \section{Màn OLED và giao diện giám sát}
-OLED 128$\times$64 hiển thị bốn ô \texttt{ROLL}, \texttt{PITCH}, \texttt{YAW} và \texttt{REF}, mỗi góc có hai chữ số thập phân. Framebuffer 1~KB được gửi từng page; tốc độ 10 page/s làm một khung hoàn chỉnh mất khoảng 0,8~s nhưng hạn chế thời gian chiếm bus I2C. Giao diện web đã được rà soát với bộ giải mã packet 85 byte, CRC-8, biểu đồ, mô hình 3D, thống kê và xuất CSV. Web Serial hoạt động trên Chrome/Edge và Firefox 151+ bản desktop; trang phải chạy trên \texttt{localhost} hoặc HTTPS. Với Firefox, extension WebSerial cũ và sandbox của gói Snap có thể gây xung đột hoặc che thiết bị serial.
+OLED 128$\times$64 hiển thị bốn ô \texttt{ROLL}, \texttt{PITCH}, \texttt{YAW} và \texttt{REF}, mỗi góc có hai chữ số thập phân. Framebuffer 1~KB được gửi từng page; tốc độ 10 page/s làm một khung hoàn chỉnh mất khoảng 0,8~s nhưng hạn chế thời gian chiếm bus I2C. Giao diện web hiện giải mã packet 77 byte, CRC-8, biểu đồ, mô hình 3D, thống kê và xuất CSV. Web Serial hoạt động trên Chrome/Edge và Firefox 151+ bản desktop; trang phải chạy trên \texttt{localhost} hoặc HTTPS. Với Firefox, extension WebSerial cũ và sandbox của gói Snap có thể gây xung đột hoặc che thiết bị serial.
 
 \needspace{7\baselineskip}
 \section{Đối chiếu yêu cầu đề K03}
@@ -507,8 +506,8 @@ OLED 128$\times$64 hiển thị bốn ô \texttt{ROLL}, \texttt{PITCH}, \texttt{
 \hline Yêu cầu & Trạng thái & Căn cứ và việc còn cần làm\\ \hline
 \endhead
 Tự viết bốn phương pháp tính góc & Có mã, có log & Module C riêng; Hình~\ref{fig:dynamic} dùng cùng một phép đo.\\ \hline
-500~Hz, hiệu chuẩn, ngắt Data Ready & Đã xác nhận bản cuối & 1\,728 gói; $dt=1\,997{,}58\pm2{,}04~\mu\mathrm{s}$, không có frame lỗi.\\ \hline
-Float và fixed point & Đã so sánh đầu ra & Lệch cực đại $0{,}00081\degree$; còn thiếu benchmark riêng và Flash/RAM.\\ \hline
+500~Hz, hiệu chuẩn, ngắt Data Ready & Đã đo trên bản cũ & 1\,728 gói; $dt=1\,997{,}58\pm2{,}04~\mu\mathrm{s}$, cần đo lại trên bản hiện tại.\\ \hline
+Kalman float & Đã tích hợp & Bản hiện tại chỉ dùng một Kalman hai trạng thái dạng float; số đo fixed thuộc bản cũ.\\ \hline
 Kalman không trôi sau 5 phút & Có bằng chứng bản cũ & Log 330~s, Hình~\ref{fig:drift}; đo lặp lại trên bản cuối.\\ \hline
 Sai số tĩnh Kalman dưới $1\degree$ & Chưa kết luận & Cần góc chuẩn độc lập ở nhiều nấc servo, MAE/RMSE và bất định chuẩn.\\ \hline
 Độ trễ và đáp ứng bước & Có chuỗi nấc tĩnh & Đã có $0\to90\to0\degree$; chưa có góc thật theo thời gian để tách trễ cơ khí và thuật toán.\\ \hline
@@ -533,7 +532,7 @@ Về triển khai, số liệu tích hợp xác nhận nhịp lấy mẫu và th
 
 \chapter*{KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}
 \addcontentsline{toc}{chapter}{KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}
-Nhóm đã xây dựng hệ thống ước lượng Roll/Pitch dùng STM32F103 và MPU6500 gồm driver I2C/EXTI mức thanh ghi, hiệu chuẩn, bốn phương pháp ước lượng, Kalman Q16.16 một phần, OLED bốn ô, telemetry nhị phân và giao diện Web Serial/3D. Dữ liệu lịch sử cho thấy bộ lọc bù và Kalman giảm độ dao động tĩnh từ khoảng $0{,}068\degree$ xuống $0{,}016\degree$ và giữ góc ổn định trong 330~s. Phép đo tích hợp cuối xác nhận 1\,728 frame hợp lệ, nhịp $1\,997{,}58\pm2{,}04~\mu\mathrm{s}$, thời gian lõi trung bình $677{,}72~\mu\mathrm{s}$ và chênh float--fixed cực đại $0{,}00081\degree$.
+Nhóm đã xây dựng hệ thống ước lượng Roll/Pitch dùng STM32F103 và MPU6500 gồm driver I2C/EXTI mức thanh ghi, hiệu chuẩn, bốn phương pháp ước lượng với một Kalman float, OLED bốn ô, telemetry nhị phân và giao diện Web Serial/3D. Dữ liệu lịch sử cho thấy bộ lọc bù và Kalman giảm độ dao động tĩnh từ khoảng $0{,}068\degree$ xuống $0{,}016\degree$ và giữ góc ổn định trong 330~s. Phép đo tích hợp cũ ghi 1\,728 frame hợp lệ, nhịp $1\,997{,}58\pm2{,}04~\mu\mathrm{s}$, thời gian lõi trung bình $677{,}72~\mu\mathrm{s}$; cần đo lại trên bản chỉ dùng Kalman float.
 
 Kết quả servo xác nhận khả năng lặp lại mốc dây và cho thấy độ rơ theo chiều quay, nhưng góc lệnh không phải góc chuẩn độc lập. Vì vậy, tiêu chí sai số tĩnh Kalman dưới $1\degree$ và độ trễ thuật toán tuyệt đối vẫn chưa được chứng minh. Trước khi nộp, nhóm cần bổ sung thông tin thành viên, ảnh/video mạch thật và demo Web Serial; khi có thước góc hoặc cảm biến chuẩn thì đo lại nhiều nấc để tính MAE/RMSE. Phần Yaw chỉ nên kết luận định lượng sau hiệu chuẩn từ trường và bù nghiêng.
 

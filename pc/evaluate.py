@@ -1,4 +1,4 @@
-"""Jitter + float/fixed + drift: doc 1 file CSV, in thong ke de paste bao cao.
+"""Jitter + drift: doc 1 file CSV, in thong ke de paste bao cao.
 Dung: python3 evaluate.py log.csv"""
 import sys, csv
 import numpy as np
@@ -17,12 +17,6 @@ for k in ['racc','rgyro','rcf','rkf','rpacc','pgyro','pcf','pkf','exec_us','dt_u
 if 'dt_us' in cols:
     d = np.array(cols['dt_us'])
     print(f'jitter: target 2000us, mean err={d.mean()-2000:+.1f}us, std={d.std():.1f}us, max-min={d.max()-d.min():.0f}us')
-if 'rkf' in cols and 'rkfix' in cols:
-    e = np.array(cols['rkf']) - np.array(cols['rkfix'])
-    print(f'kalman float-fix roll: max|e|={np.abs(e).max():.4f}deg mean={e.mean():+.5f}')
-if 'pkf' in cols and 'pkfix' in cols:
-    e = np.array(cols['pkf']) - np.array(cols['pkfix'])
-    print(f'kalman float-fix pitch: max|e|={np.abs(e).max():.4f}deg mean={e.mean():+.5f}')
 for k in ['rgyro','pgyro']:
     if k in cols:
         g = np.array(cols[k]); secs = len(g) / 50

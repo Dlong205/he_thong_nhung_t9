@@ -40,7 +40,7 @@ mức thanh ghi; HAL chỉ dùng cho nền tảng (clock init, NVIC wrapper, HAL
 - `CR1 = UE|TE|RE|RXNEIE`; `TXEIE` bật khi ring có dữ liệu.
 - TX ring 512B + ISR TXE (non-blocking — không phá nhịp 500Hz);
   RX ring 128B + ISR RXNE cho lệnh `REF/SEQ/MAGCAL/BIN/OLED`.
-- Telemetry gói binary `AA 55 | LEN | TS | 14xf32 | EXEC | DT | rkfix | pkfix | ref | yawr | yawt | CRC8`
+- Telemetry gói binary `AA 55 | LEN | TS | 14xf32 | EXEC | DT | ref | yawr | yawt | CRC8`
   (85B @50Hz, đo 156 frame/3s CRC hợp lệ 100%, bad=0).
 
 ## 6. DWT đo thời gian thực thi (`timing.c`)
