@@ -5,6 +5,13 @@
 > **Phiên bản triển khai:** STM32F103 + hai bus I2C tách biệt + Data Ready Interrupt + Complementary/Kalman + OLED + telemetry binary + Web Serial/3D
 > **Mục tiêu:** bám yêu cầu đề tài mức Khó, có phần lập trình thanh ghi rõ ràng, thuật toán tự viết, đo đạc định lượng và demo trực quan.
 
+## Cập nhật thuật toán ngày 22/10/2026
+
+- Kalman fixed hiện tính cả góc (Q16.16), gyro bias (Q10.22), ma trận hiệp phương sai và Q/R (Q4.28) bằng số nguyên. Chỉ đầu vào/đầu ra telemetry được chuyển đổi với `float`.
+- `dt` của các bộ lọc lấy từ DWT giữa hai mẫu MPU đọc thành công; giới hạn 0,5–20 ms khi mất mẫu lâu. Trường `dt_us` trong telemetry ghi khoảng thời gian thực, bão hòa ở 65.535 us do định dạng `u16`. Khi PA0 không có Data Ready, firmware dự phòng bằng DWT ở nhịp 2 ms.
+- Replay ba bộ CSV lịch sử bằng `python3 tests/test_kalman_fixed_replay.py`: chênh lệch Kalman float–fixed lớn nhất dưới 0,15° trên dữ liệu thử. Bản này đã được nạp lên STM32. Trong lần kiểm tra ngắn qua ST-Link, PA0 không có xung Data Ready (`exti_ok_count=0`); fallback DWT xử lý khoảng 2.457 mẫu/5 s, telemetry khoảng 245 gói/5 s, 0 lỗi đọc MPU. Thời gian xử lý lõi tối đa khoảng 1,79 ms, chưa tính OLED/telemetry; có 49 khoảng mẫu vượt 2,5 ms và khoảng dài nhất khoảng 7,2 ms. Cần ghi lại log dài từ firmware mới trước khi dùng số liệu hiệu năng hoặc sai số trong báo cáo.
+- Các số đo ngày 20/10 bên dưới thuộc firmware trước cập nhật này; không dùng chúng làm kết quả đo của bản fixed mới.
+
 ## Tiến độ thực tế (2026-10-20 — bản tích hợp cuối)
 
 - Hai nhóm bus: OLED và QMC5883P dùng chung **I2C1 PB6/PB7 400 kHz**; MPU6500 dùng riêng **I2C2 PB10/PB11 100 kHz**. Lỗi trên bus hiển thị/từ kế không giữ SDA/SCL của MPU.
@@ -780,6 +787,7 @@ với margin hợp lý.
 ---
 
 ### PHASE 11 -- Fixed-point
+Các mục sau ghi lại giai đoạn thử bản lai cũ; xem mục cập nhật ngày 22/10 ở đầu tài liệu cho mã hiện hành.
 - [x] Chọn Q-format (Q16.16).
 - [x] Xác định range.
 - [x] Chống overflow (giữ float cho tích trung gian).

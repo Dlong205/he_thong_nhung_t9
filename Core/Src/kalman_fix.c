@@ -1,26 +1,91 @@
-// SV2 - Kalman fixed-point: angle/bias Q16.16, P/Q/R float.
-// Lý do kiến trúc (đã đo max|e|=0.01°/330s): P/Q/R ~1e-3..1e-6 < LSB Q16 (1.5e-5)
-// nên giữ float cho covariance, chỉ lượng tử hóa state.
+// SV2 - Kalman fixed-point hai trạng thái [angle; bias].
 #include "kalman_fix.h"
+#include <limits.h>
+
+#define Q16_ONE 65536LL
+#define Q22_ONE 4194304LL
+#define Q24_ONE 16777216LL
+// round(Q/R * 2^28), cùng tham số với kalman.c. LSB ~= 3.73e-9.
+#define Q_ANGLE_Q28 268435
+#define Q_BIAS_Q28 805306
+#define R_MEASURE_Q28 8053064
+
+static int32_t to_q16(float x) {
+  if (x >= 32767.0f) return INT32_MAX;
+  if (x <= -32768.0f) return INT32_MIN;
+  return (int32_t)(x * (float)Q16_ONE);
+}
+
+static int32_t to_q22(float x) {
+  if (x >= 511.0f) return INT32_MAX;
+  if (x <= -512.0f) return INT32_MIN;
+  return (int32_t)(x * (float)Q22_ONE);
+}
+
+static int32_t to_q24(float x) {
+  if (x >= 127.0f) return INT32_MAX;
+  if (x <= -128.0f) return INT32_MIN;
+  return (int32_t)(x * (float)Q24_ONE);
+}
+
+static int32_t mul_q28_q16(int32_t a, int32_t b) {
+  return (int32_t)(((int64_t)a * b) / Q16_ONE);
+}
+
+static int32_t mul_q28_dt(int32_t a, int32_t b) {
+  return (int32_t)(((int64_t)a * b) / Q24_ONE);
+}
+
+static int32_t gain_q16(int32_t p_q28, int32_t s_q28) {
+  // Chia 32-bit trực tiếp trên Cortex-M3. Chia cả tử/mẫu theo cùng tỉ lệ
+  // để không cần phép chia 64-bit trong dải covariance thường gặp.
+  if (p_q28 >= -(INT32_MAX / 256) && p_q28 <= INT32_MAX / 256 &&
+      s_q28 >= 256) {
+    return (p_q28 * 256) / (s_q28 / 256);
+  }
+  if (p_q28 >= -(INT32_MAX / 16) && p_q28 <= INT32_MAX / 16 &&
+      s_q28 >= 4096) {
+    return (p_q28 * 16) / (s_q28 / 4096);
+  }
+  return (int32_t)(((int64_t)p_q28 * Q16_ONE) / s_q28);
+}
+
 void kfix_init(KalmanFix_t *k) {
   k->angle = 0; k->bias = 0;
   k->P00 = 0; k->P01 = 0; k->P10 = 0; k->P11 = 0;
-  k->Q_angle = 0.001f; k->Q_bias = 0.003f; k->R_measure = 0.03f;
+  k->Q_angle = Q_ANGLE_Q28;
+  k->Q_bias = Q_BIAS_Q28;
+  k->R_measure = R_MEASURE_Q28;
 }
 float kfix_update(KalmanFix_t *k, float acc_angle, float gyro_rate, float dt) {
-  float angle = ((float)k->angle) / 65536.0f;
-  float bias = ((float)k->bias) / 65536.0f;
-  float rate = gyro_rate - bias;
-  angle += dt * rate;
-  k->P00 += dt * (dt * k->P11 - k->P01 - k->P10 + k->Q_angle);
-  k->P01 -= dt * k->P11; k->P10 -= dt * k->P11; k->P11 += k->Q_bias * dt;
-  float y = acc_angle - angle;
-  float S = k->P00 + k->R_measure;
-  float K0 = k->P00 / S, K1 = k->P10 / S;
-  angle += K0 * y; bias += K1 * y;
-  float P00t = k->P00, P01t = k->P01;
-  k->P00 -= K0 * P00t; k->P01 -= K0 * P01t; k->P10 -= K1 * P00t; k->P11 -= K1 * P01t;
-  k->angle = (int32_t)(angle * 65536.0f);
-  k->bias = (int32_t)(bias * 65536.0f);
-  return angle;
+  // Chuyển đổi đơn vị duy nhất tại biên API. Caller giới hạn dt <= 20 ms.
+  int32_t dt_q24 = to_q24(dt);
+  int32_t acc_q16 = to_q16(acc_angle);
+  int32_t gyro_q22 = to_q22(gyro_rate);
+  int64_t rate_q22 = (int64_t)gyro_q22 - k->bias;
+  k->angle += (int32_t)((rate_q22 * dt_q24) / (1LL << 30)); // Q22*Q24 -> Q16
+
+  int32_t p11 = k->P11;
+  k->P00 += mul_q28_dt(mul_q28_dt(p11, dt_q24), dt_q24)
+          - mul_q28_dt(k->P01 + k->P10, dt_q24)
+          + mul_q28_dt(k->Q_angle, dt_q24);
+  k->P01 -= mul_q28_dt(p11, dt_q24);
+  k->P10 -= mul_q28_dt(p11, dt_q24);
+  k->P11 += mul_q28_dt(k->Q_bias, dt_q24);
+
+  int64_t residual_q16 = (int64_t)acc_q16 - k->angle;
+  int32_t innovation_q28 = k->P00 + k->R_measure;
+  if (innovation_q28 <= 0) return (float)k->angle / (float)Q16_ONE;
+  int32_t k0_q16 = gain_q16(k->P00, innovation_q28);
+  int32_t k1_q16 = gain_q16(k->P10, innovation_q28);
+  k->angle += (int32_t)((k0_q16 * residual_q16) / Q16_ONE);
+  k->bias += (int32_t)((k1_q16 * residual_q16) / 1024LL); // Q32 -> Q22
+
+  // Dùng covariance ngay trước bước đo, giống bản float.
+  int32_t p00 = k->P00, p01 = k->P01;
+  k->P00 -= mul_q28_q16(p00, k0_q16);
+  k->P01 -= mul_q28_q16(p01, k0_q16);
+  k->P10 -= mul_q28_q16(p00, k1_q16);
+  k->P11 -= mul_q28_q16(p01, k1_q16);
+  return (float)k->angle / (float)Q16_ONE;
 }

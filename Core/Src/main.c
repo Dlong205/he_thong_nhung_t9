@@ -52,6 +52,10 @@ volatile uint8_t i2c_scan_result[7];
 volatile uint8_t i2c_mpu_whoami_last = 0;
 volatile uint8_t i2c_mpu_init_ok = 0;
 volatile uint32_t mpu_read_fail_total = 0;
+// Giữ số liệu trong RAM để xem qua ST-Link khi trình duyệt đang giữ UART.
+volatile uint32_t last_exec_us = 0, max_exec_us = 0;
+volatile uint32_t max_sample_dt_us = 0, late_sample_count = 0;
+volatile uint32_t exti_ok_count = 0, fallback_count = 0;
 #if USE_MAGCAL
 // MAGCAL: thu hard-iron 15s (xoay ngang 360°), không chặn loop
 static bool s_magcal = false;
@@ -187,6 +191,7 @@ int main(void) {
   telemetry_banner();
 
   uint32_t last_dwt = timing_cycles();
+  uint32_t last_valid_dwt = 0; // mốc của mẫu MPU đọc thành công gần nhất
   uint32_t cnt = 0, int_ok = 0, int_timeout = 0;
   char cmd[96];
   float yaw_r = 0, yaw_t = 0;
@@ -243,11 +248,11 @@ int main(void) {
     uint32_t now_cyc = timing_cycles();
     uint32_t dt_us = dwt_to_us(last_dwt, now_cyc);
 #if USE_EXTI
-    if (exti_consume()) { int_ok++; }
+    if (exti_consume()) { int_ok++; exti_ok_count++; }
     else {
-      // Fallback nếu mất INT >5ms (tránh treo khi chưa cắm dây PA0)
-      if (dt_us < 5000) continue;
-      int_timeout++;
+      // Không có INT: vẫn lấy mẫu bằng DWT ở 500 Hz thay vì rơi xuống 200 Hz.
+      if (dt_us < 2000) continue;
+      int_timeout++; fallback_count++;
     }
 #else
     if (dt_us < 2000) continue;
@@ -293,6 +298,18 @@ int main(void) {
                     (unsigned long)mpu_read_fail_total);
       mpu_err = 0;
     }
+    // Chỉ cập nhật mốc sau một mẫu hợp lệ: lỗi I2C không làm mất thời gian
+    // thực đã trôi qua giữa hai lần cập nhật bộ lọc.
+    dt_us = last_valid_dwt ? dwt_to_us(last_valid_dwt, now_cyc) : 2000u;
+    last_valid_dwt = now_cyc;
+    if (dt_us > max_sample_dt_us) max_sample_dt_us = dt_us;
+    if (dt_us > 2500u) late_sample_count++;
+    // Khi mất mẫu lâu, không thể biết chuyển động gyro trong khoảng trống.
+    // Giới hạn bước dự đoán để tránh một lần cập nhật làm góc nhảy quá mạnh.
+    uint32_t filter_dt_us = dt_us;
+    if (filter_dt_us < 500u) filter_dt_us = 500u;
+    if (filter_dt_us > 20000u) filter_dt_us = 20000u;
+    if (dt_us > 65535u) dt_us = 65535u; // trường DT của gói UART là u16
     float al, gl;
     mpu6500_get_scale(&al, &gl);
     SensorData_t s;
@@ -302,7 +319,7 @@ int main(void) {
     s.gy = (float)gy / gl - gbias.gy;
     s.gz = (float)gz / gl - gbias.gz;
     s.mx = 0; s.my = 0; s.mz = 0;
-    s.dt = SYS_TS;
+    s.dt = (float)filter_dt_us * 0.000001f;
     s.ts_ms = board_millis();
 
     Attitude_t a;
@@ -319,6 +336,8 @@ int main(void) {
     a.yaw_raw = yaw_r; a.yaw_tilt = yaw_t;
 
     uint32_t exec_us = dwt_to_us(c0, timing_cycles());
+    last_exec_us = exec_us;
+    if (exec_us > max_exec_us) max_exec_us = exec_us;
     cnt++;
     if (cnt % SYS_TELEMETRY_DIV == 0) {
       // Mag 50Hz (ODR chip 200Hz, đọc decimate đủ): poll DRDY rồi burst 6B LE

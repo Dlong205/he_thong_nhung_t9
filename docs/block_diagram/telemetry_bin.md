@@ -11,7 +11,7 @@ Theo gợi ý đề: `HEADER | LENGTH | TIMESTAMP | DATA | CHECKSUM`.
 | TIMESTAMP | u32 | 3..6 | `HAL_GetTick()` ms |
 | DATA | 14×f32 | 7..62 | ax,ay,az, gx,gy,gz, racc,rpacc, rgyro,pgyro, rcf,pcf, rkf,pkf |
 | EXEC | u16 | 63..64 | thời gian xử lý mẫu (DWT, us) |
-| DT | u16 | 65..66 | chu kỳ lấy mẫu thực (us) |
+| DT | u16 | 65..66 | khoảng cách giữa hai mẫu MPU hợp lệ (us), bão hòa ở 65535 |
 | rkfix | f32 | 67..70 | Kalman fixed-point roll |
 | pkfix | f32 | 71..74 | Kalman fixed-point pitch |
 | ref | i8 | 75 | góc servo lệnh (deg, -90..90) |
