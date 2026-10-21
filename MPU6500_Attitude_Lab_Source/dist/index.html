@@ -7,7 +7,7 @@
   <meta name="description" content="MPU6500 Attitude Lab — kết nối STM32F103 qua Web Serial để trực quan hóa Roll/Pitch bằng mô hình 3D." />
   <title>MPU6500 Attitude Lab</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css?v=web-20261021-2" />
+  <link rel="stylesheet" href="./styles.css?v=web-20261022-zoom" />
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -144,7 +144,7 @@
     </section>
 
     <section class="analysis-grid">
-      <article class="panel chart-panel">
+      <article class="panel chart-panel" id="chart-panel">
         <div class="panel-head chart-head">
           <div>
             <p class="label">FILTER COMPARISON</p>
@@ -157,9 +157,18 @@
             <label class="leg-kalman" id="legend-kalman"><input type="checkbox" data-chart-series="kalman" checked><span>Kalman</span></label>
           </div>
         </div>
+        <div class="chart-toolbar" role="toolbar" aria-label="Điều khiển đồ thị">
+          <div class="chart-zoom-controls">
+            <button id="chart-zoom-out" type="button" aria-label="Thu nhỏ đồ thị, xem nhiều thời gian hơn" title="Xem nhiều thời gian hơn">−</button>
+            <span id="chart-zoom-label" aria-live="polite">6 giây</span>
+            <button id="chart-zoom-in" type="button" aria-label="Phóng to đồ thị, xem ít thời gian hơn" title="Xem chi tiết hơn">+</button>
+          </div>
+          <button id="chart-live" type="button" class="chart-tool-button" title="Quay lại dữ liệu mới nhất">Về hiện tại</button>
+          <button id="chart-expand" type="button" class="chart-tool-button" aria-pressed="false" title="Mở đồ thị lớn">⛶ Mở rộng</button>
+        </div>
         <div class="chart-wrap"><canvas id="filter-chart" aria-label="Đồ thị góc Roll, Pitch hoặc Yaw theo thời gian"></canvas></div>
         <div class="chart-footer">
-          <span id="chart-window">Cửa sổ 6 giây · thời gian STM32</span>
+          <span id="chart-window">Cửa sổ 6 giây · kéo đồ thị để xem đoạn trước · cuộn chuột để phóng to</span>
           <button id="export-button" class="text-button">Xuất CSV</button>
         </div>
       </article>
@@ -333,7 +342,7 @@
 
   <script src="./aircraft.js?v=mpu-dot-1" defer></script>
   <script src="./protocol.js" defer></script>
-  <script src="./app.js?v=web-20261021-2" defer></script>
+  <script src="./app.js?v=web-20261022-zoom" defer></script>
   <script src="./wiring.js?v=bus-2" defer></script>
 </body>
 </html>

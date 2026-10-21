@@ -152,7 +152,20 @@ button:disabled { opacity: .42; cursor: not-allowed; transform: none !important;
 .leg-acc { color: var(--blue) !important; }.leg-gyro { color: var(--purple) !important; }.leg-cf { color: var(--yellow) !important; }.leg-kalman { color: var(--mint) !important; }
 .leg-yaw-filtered { color: var(--orange) !important; }
 .chart-wrap { height: 280px; border-radius: 10px; overflow: hidden; background: rgba(2,12,14,.35); border: 1px solid rgba(255,255,255,.04); }
-#filter-chart { width: 100%; height: 100%; display: block; }
+#filter-chart { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+#filter-chart.dragging { cursor: grabbing; }
+.chart-toolbar { display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin:10px 0; }
+.chart-zoom-controls { display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#10282a; }
+.chart-zoom-controls button,.chart-tool-button { min-height:32px;border:1px solid var(--line);border-radius:8px;background:#10282a;color:var(--text);font:inherit;font-size:11px;font-weight:700;cursor:pointer;padding:6px 10px; }
+.chart-zoom-controls button { min-width:34px;border:0;border-radius:0;font-size:17px;padding:2px 8px; }
+.chart-zoom-controls button:hover,.chart-tool-button:hover { background:#1a393a; }
+.chart-zoom-controls span { min-width:57px;text-align:center;color:var(--mint);font-size:11px;font-variant-numeric:tabular-nums; }
+.chart-tool-button[aria-pressed="true"] { border-color:var(--mint);color:var(--mint); }
+body.chart-expanded { overflow:hidden; }
+.chart-panel.expanded { position:fixed;inset:16px;z-index:100;display:flex;flex-direction:column;background:#0b2022;box-shadow:0 24px 90px rgba(0,0,0,.75);overflow:auto; }
+.chart-panel.expanded .chart-wrap { flex:1;min-height:240px;height:auto; }
+.chart-panel.expanded .chart-footer { flex-shrink:0; }
+@media(max-width:600px) { .chart-panel.expanded { inset:6px;padding:12px; } .chart-toolbar { justify-content:flex-start; } .chart-footer { gap:10px;flex-wrap:wrap; } }
 .chart-footer { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 10px; }
 .chart-footer .text-button { margin: 0; }
 .tiny-badge, .step-badge { font-size: 9px; letter-spacing: .12em; color: var(--blue); border: 1px solid rgba(112,183,255,.25); background: rgba(112,183,255,.07); padding: 6px 8px; border-radius: 7px; font-weight: 800; }

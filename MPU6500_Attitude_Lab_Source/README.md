@@ -17,6 +17,10 @@ Commit nguồn: `b09d0790303d846fc1e504be4bb39b5d77126627`
 - `.openai/hosting.json`: cấu hình dự án Sites hiện tại.
 
 Giao diện hiện có nút bật/tắt riêng từng đường trên đồ thị Roll/Pitch/Yaw.
+Trên đồ thị, dùng `+`/`−` hoặc cuộn chuột để đổi cửa sổ thời gian từ 1 đến
+30 giây; bấm **Mở rộng** để xem biểu đồ lớn, kéo ngang để xem dữ liệu cũ và
+bấm **Về hiện tại** để tiếp tục theo dõi trực tiếp. Web giữ khoảng 60 giây
+dữ liệu gần nhất trong bộ nhớ đồ thị; nút **Xuất CSV** vẫn dùng toàn bộ phiên.
 Yaw có các mức làm mượt vòng (0,2/0,6/1,2 s) chỉ áp dụng trên web, giữ
 nguyên góc gốc trong gói STM32 và CSV. Chấm đỏ `MPU` giữa thân máy bay là mốc
 trực quan của mô hình, không xác nhận vị trí gá cảm biến thật. Sơ đồ chân trên

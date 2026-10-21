@@ -18,7 +18,8 @@
     port: null, reader: null, connected: false, demoRunning: true, receiveBuffer: "",
     packetCount: 0, errorCount: 0, packetsThisSecond: 0, measuredRate: 50,
     lastPacketAt: 0, zeroRoll: 0, zeroPitch: 0, zeroYaw: 0, start: performance.now(),
-    selectedSource: "kalman", log: [], maxLog: 100000, maxChart: 300, samples: [], elapsed: 0, previousTimestamp: null, dropped: 0, segments: 1,
+    selectedSource: "kalman", log: [], maxLog: 100000, maxChart: 3000, samples: [], elapsed: 0, previousTimestamp: null, dropped: 0, segments: 1,
+    chartZoomIndex: 3, chartFollowLive: true, chartViewEnd: null,
     rawFilter: {
       lastTimestamp: null,
       gyroRoll: 0, gyroPitch: 0, cfRoll: 0, cfPitch: 0,
@@ -35,6 +36,7 @@
   };
 
   const COLORS = { acc: "#70b7ff", gyro: "#c590ff", cf: "#f8d36a", kalman: "#54e6c5" };
+  const CHART_WINDOWS = [1, 2, 3, 6, 10, 20, 30];
   let toastTimer;
 
   function toast(message, isError = false) {
@@ -242,7 +244,7 @@
     const age=state.lastPacketAt?now-state.lastPacketAt:0;
     state.lastPacketAt=now;state.latest=packet;state.packetCount++;state.packetsThisSecond++;
     els.latency.textContent=age?`${age.toFixed(1)} ms`:'—';els.packetCount.textContent=state.packetCount.toLocaleString('vi-VN');
-    state.samples.push(packet);if(state.samples.length>600)state.samples.shift();
+    state.samples.push(packet);if(state.samples.length>state.maxChart)state.samples.shift();
     const row={reference_measured:capture&&isReal?capture.reference:'',reference_axis:capture&&isReal?capture.axis:'',trial_id:capture&&isReal?capture.id:'',source:isReal?'hardware':'demo',protocol:packet.protocol||'demo',segment:state.segments,timestamp:packet.timestamp,elapsed_s:state.elapsed,
       roll_acc:packet.acc.roll,pitch_acc:packet.acc.pitch,roll_gyro:packet.gyro.roll,pitch_gyro:packet.gyro.pitch,roll_cf:packet.cf.roll,pitch_cf:packet.cf.pitch,roll_kalman:packet.kalman.roll,pitch_kalman:packet.kalman.pitch,
       roll_fixed:packet.fixed?.roll??'',pitch_fixed:packet.fixed?.pitch??'',ref_command:packet.ref??'',yaw_raw:packet.yaw_raw??'',yaw_tilt:packet.yaw_tilt??'',yaw_filtered_web:packet.yaw_filtered??'',yaw_filter_mode:$('yaw-filter').value,mag_fresh:isReal?(peripheral.magFresh===true?'1':'0'):'demo',mag_calibrated:isReal?(peripheral.magCalibrated===true?'1':'0'):'demo',exec_us:packet.exec_us??'',dt_us:packet.dt_us??'',ax:packet.ax,ay:packet.ay,az:packet.az,gx:packet.gx,gy:packet.gy,gz:packet.gz};
@@ -355,10 +357,37 @@
     els.canvas.dataset.dpr = String(dpr);
   }
 
+  function chartRange() {
+    const span = CHART_WINDOWS[state.chartZoomIndex];
+    const latestEnd = Math.max(span, state.elapsed);
+    const oldest = state.samples[0]?.elapsed ?? 0;
+    const earliestEnd = Math.min(latestEnd, oldest + span);
+    const end = state.chartFollowLive ? latestEnd : Math.max(earliestEnd, Math.min(latestEnd, state.chartViewEnd ?? latestEnd));
+    return {start:end-span,end,span,earliestEnd,latestEnd};
+  }
+
+  function updateChartToolbar() {
+    const span=CHART_WINDOWS[state.chartZoomIndex];
+    $('chart-zoom-label').textContent=`${span} giây`;
+    $('chart-zoom-in').disabled=state.chartZoomIndex===0;
+    $('chart-zoom-out').disabled=state.chartZoomIndex===CHART_WINDOWS.length-1;
+    $('chart-live').disabled=state.chartFollowLive;
+    $('chart-window').textContent=`Cửa sổ ${span} giây · ${state.chartFollowLive?'đang theo dữ liệu mới':'đang xem đoạn trước'} · kéo để tua, cuộn chuột để phóng to`;
+  }
+
+  function setChartZoom(nextIndex) {
+    const index=Math.max(0,Math.min(CHART_WINDOWS.length-1,nextIndex));
+    if(index===state.chartZoomIndex)return;
+    const oldRange=chartRange();
+    state.chartZoomIndex=index;
+    if(!state.chartFollowLive)state.chartViewEnd=(oldRange.start+oldRange.end+CHART_WINDOWS[index])/2;
+    updateChartToolbar();
+  }
+
   function drawChart() {
     const canvas=els.canvas,ctx=canvas.getContext('2d'),dpr=Number(canvas.dataset.dpr||1),w=canvas.width/dpr,h=canvas.height/dpr;
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
-    const axis=$('chart-axis').value,end=state.elapsed,start=Math.max(0,end-6),rows=state.samples.filter(p=>p.elapsed>=start),span=Math.max(6,end-start);
+    const axis=$('chart-axis').value,{start,end,span}=chartRange(),rows=state.samples.filter(p=>p.elapsed>=start&&p.elapsed<=end);
     const series=(axis==='yaw'
       ? [['yaw_raw','#70b7ff'],['yaw_tilt','#54e6c5'],['yaw_filtered','#ff8d5c']]
       : Object.entries(COLORS).map(([key,color])=>[key,color]))
@@ -444,6 +473,7 @@
   function cancelCapture(reason){if(!capture)return;capture=null;$('measurement-status').textContent=reason;$('capture-static').textContent='Thu 5 giây đứng yên';}
   function resetSession(){
     cancelCapture('Đã mở phiên mới.');decoder.reset();state.log=[];state.samples=[];state.elapsed=0;state.previousTimestamp=null;state.dropped=0;state.segments=1;
+    state.chartFollowLive=true;state.chartViewEnd=null;updateChartToolbar();
     state.packetCount=0;state.errorCount=0;state.packetsThisSecond=0;state.measuredRate=0;state.lastPacketAt=0;state.receiveBuffer='';
     state.zeroRoll=state.zeroPitch=state.zeroYaw=0;state.yawFilter={value:null,lastElapsed:null};maxDelta=0;overBudget=0;
     if(state.selectedSource==="fixed"){state.selectedSource="kalman";els.source.value="kalman";}
@@ -527,6 +557,41 @@
   }
   $('chart-axis').addEventListener('change',updateChartControls);
   document.querySelectorAll('[data-chart-series]').forEach(box=>box.addEventListener('change',()=>{state.chartVisible[box.dataset.chartSeries]=box.checked;}));
+  $('chart-zoom-in').addEventListener('click',()=>setChartZoom(state.chartZoomIndex-1));
+  $('chart-zoom-out').addEventListener('click',()=>setChartZoom(state.chartZoomIndex+1));
+  $('chart-live').addEventListener('click',()=>{state.chartFollowLive=true;state.chartViewEnd=null;updateChartToolbar();});
+  $('chart-expand').addEventListener('click',()=>{
+    const expanded=$('chart-panel').classList.toggle('expanded');
+    document.body.classList.toggle('chart-expanded',expanded);
+    $('chart-expand').textContent=expanded?'✕ Thu gọn':'⛶ Mở rộng';
+    $('chart-expand').setAttribute('aria-pressed',String(expanded));
+    requestAnimationFrame(resizeCanvas);
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&$('chart-panel').classList.contains('expanded'))$('chart-expand').click();
+  });
+  els.canvas.addEventListener('wheel',event=>{
+    event.preventDefault();
+    setChartZoom(state.chartZoomIndex+(event.deltaY<0?-1:1));
+  },{passive:false});
+  let chartDrag=null;
+  els.canvas.addEventListener('pointerdown',event=>{
+    if(!state.samples.length)return;
+    chartDrag={x:event.clientX,end:chartRange().end};
+    els.canvas.setPointerCapture(event.pointerId);
+    els.canvas.classList.add('dragging');
+  });
+  els.canvas.addEventListener('pointermove',event=>{
+    if(!chartDrag)return;
+    const range=chartRange();
+    const plotWidth=Math.max(1,els.canvas.clientWidth-58);
+    state.chartFollowLive=false;
+    state.chartViewEnd=Math.max(range.earliestEnd,Math.min(range.latestEnd,chartDrag.end-(event.clientX-chartDrag.x)/plotWidth*range.span));
+    updateChartToolbar();
+  });
+  const stopChartDrag=()=>{chartDrag=null;els.canvas.classList.remove('dragging');};
+  els.canvas.addEventListener('pointerup',stopChartDrag);
+  els.canvas.addEventListener('pointercancel',stopChartDrag);
   function resetYawView(){state.zeroYaw=0;state.yawFilter={value:null,lastElapsed:null};state.samples.forEach(p=>{p.yaw_filtered=null;});state.latest.yaw_filtered=null;updateNumbers();}
   $('yaw-source').addEventListener('change',resetYawView);
   $('yaw-filter').addEventListener('change',resetYawView);
@@ -553,6 +618,7 @@
   els.source.addEventListener("change", () => { state.selectedSource = els.source.value; state.zeroRoll = 0; state.zeroPitch = 0; });
   els.baud.addEventListener("change", () => els.uartRate.textContent = els.baud.value);
   window.addEventListener("resize", resizeCanvas);
+  if('ResizeObserver' in window)new ResizeObserver(resizeCanvas).observe($('chart-panel').querySelector('.chart-wrap'));
   if ("serial" in navigator) navigator.serial.addEventListener("disconnect", event => {
     if(event.target===state.port)disconnectSerial(false);
   });
@@ -564,5 +630,5 @@
     state.packetsThisSecond = 0;
   }, 1000);
 
-  updateChartControls();setConnectionUI(false); resizeCanvas(); requestAnimationFrame(animate);
+  updateChartControls();updateChartToolbar();setConnectionUI(false); resizeCanvas(); requestAnimationFrame(animate);
 })();
