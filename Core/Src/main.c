@@ -14,7 +14,6 @@
 #include "calibration.h"
 #include "attitude.h"
 #include "complementary.h"
-#include "complementary_fix.h"
 #include "kalman.h"
 #include "exti.h"
 #include "telemetry.h"
@@ -38,7 +37,6 @@ static GyroBias_t gbias;
 static AccCal_t accal;
 static GyroInt_t gint;
 static CF_t cf;
-static CFfix_t cffix;
 static Kalman_t kr, kp;
 
 static bool s_has_oled = false;
@@ -168,7 +166,6 @@ int main(void) {
 
   kalman_init(&kr); kalman_init(&kp);
   cf_init(&cf, CF_ALPHA_DEFAULT);
-  cffix_init(&cffix, CF_ALPHA_DEFAULT);
   gyro_int_reset(&gint);
 
   // Calib gyro ở boot (được delay, không phải loop chính)
@@ -311,7 +308,6 @@ int main(void) {
     a.roll_gyro = gint.roll; a.pitch_gyro = gint.pitch;
     cf_update(&cf, a.roll_acc, a.pitch_acc, s.gx, s.gy, s.dt);
     a.roll_cf = cf.roll; a.pitch_cf = cf.pitch;
-    cffix_update(&cffix, a.roll_acc, a.pitch_acc, s.gx, s.gy, s.dt);
     a.roll_kalman = kalman_update(&kr, a.roll_acc, s.gx, s.dt);
     a.pitch_kalman = kalman_update(&kp, a.pitch_acc, s.gy, s.dt);
     a.yaw_raw = yaw_r; a.yaw_tilt = yaw_t;
